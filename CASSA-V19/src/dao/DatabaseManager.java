@@ -5,42 +5,41 @@ import java.sql.DriverManager;
 import java.sql.Statement;
 
 public class DatabaseManager {
+    // Percorso fisso del database nella cartella principale del progetto
     private static final String URL = "jdbc:sqlite:cassa_sagra.db";
 
     public static void inizializzaDatabase() {
-        try (Connection conn = DriverManager.getConnection(URL);
-             Statement stmt = conn.createStatement()) {
+        try {
+            Class.forName("org.sqlite.JDBC");
 
-            // 1. Mantiene il listino prodotti intatto
-            String sqlProdotto = "CREATE TABLE IF NOT EXISTS prodotto ("
-                    + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
-                    + "nome TEXT NOT NULL,"
-                    + "prezzo REAL NOT NULL,"
-                    + "id_gruppo INTEGER DEFAULT 1);";
-            stmt.execute(sqlProdotto);
+            try (Connection conn = DriverManager.getConnection(URL);
+                 Statement stmt = conn.createStatement()) {
 
-            // 2. FORZATURA: Elimina le vecchie tabelle degli ordini bloccate
-            stmt.execute("DROP TABLE IF EXISTS ordine");
-            stmt.execute("DROP TABLE IF EXISTS dettaglio_ordine");
+                // Creazione tabella prodotti se non esiste
+                stmt.execute("CREATE TABLE IF NOT EXISTS prodotto ("
+                        + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                        + "nome TEXT NOT NULL,"
+                        + "prezzo REAL NOT NULL,"
+                        + "id_gruppo INTEGER DEFAULT 1);");
 
-            // 3. Ricrea le tabelle con la nuova struttura per il Report Z
-            String sqlOrdine = "CREATE TABLE IF NOT EXISTS ordine ("
-                    + "numero_scontrino INTEGER PRIMARY KEY,"
-                    + "data_ora INTEGER,"
-                    + "totale REAL);";
-            stmt.execute(sqlOrdine);
+                // Creazione tabella ordini se non esiste
+                stmt.execute("CREATE TABLE IF NOT EXISTS ordine ("
+                        + "numero_scontrino INTEGER PRIMARY KEY,"
+                        + "data_ora INTEGER,"
+                        + "totale REAL);");
 
-            String sqlDettaglio = "CREATE TABLE IF NOT EXISTS dettaglio_ordine ("
-                    + "numero_scontrino INTEGER,"
-                    + "nome_prodotto TEXT,"
-                    + "quantita INTEGER,"
-                    + "prezzo_totale REAL);";
-            stmt.execute(sqlDettaglio);
+                // Creazione tabella dettagli ordine se non esiste
+                stmt.execute("CREATE TABLE IF NOT EXISTS dettaglio_ordine ("
+                        + "numero_scontrino INTEGER,"
+                        + "nome_prodotto TEXT,"
+                        + "quantita INTEGER,"
+                        + "prezzo_totale REAL);");
 
-            System.out.println("Database allineato con successo.");
+                System.out.println("Database SQLite inizializzato correttamente su file.");
 
+            }
         } catch (Exception e) {
-            System.out.println("Errore di inizializzazione DB: " + e.getMessage());
+            System.err.println("ERRORE INIZIALIZZAZIONE DATABASE: " + e.getMessage());
         }
     }
 }

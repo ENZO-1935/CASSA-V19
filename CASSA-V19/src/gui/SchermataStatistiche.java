@@ -1,6 +1,7 @@
 package gui;
 
 import dao.OrdineDAO;
+import hardware.GestoreStampa;
 import javax.swing.*;
 import java.awt.*;
 import java.text.SimpleDateFormat;
@@ -9,30 +10,27 @@ import java.util.Map;
 
 public class SchermataStatistiche extends JFrame {
 
-    private static final int LARGHEZZA_REPORT = 42; // Caratteri massimi per riga
+    private static final int LARGHEZZA_REPORT = 42;
 
     public SchermataStatistiche() {
         setTitle("Report di Chiusura Cassa");
-        setSize(450, 700);
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        setSize(450, 750);
+        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE); // Chiude solo la finestra senza alterare il DB
         setLayout(new BorderLayout());
 
         OrdineDAO dao = new OrdineDAO();
         double incassoTotale = dao.calcolaIncassoTotale();
         Map<String, double[]> datiReport = dao.generaReportArticoli();
 
-        // Area di testo per simulare lo scontrino fisico
         JTextArea areaReport = new JTextArea();
         areaReport.setEditable(false);
-        areaReport.setFont(new Font("Monospaced", Font.BOLD, 15)); // Font da scontrino
-        areaReport.setBackground(new Color(253, 253, 230)); // Colore giallino carta
+        areaReport.setFont(new Font("Monospaced", Font.BOLD, 15));
+        areaReport.setBackground(new Color(253, 253, 230));
         areaReport.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        // Costruzione dell'intestazione (come nella foto)
         String dataOra = new SimpleDateFormat("dd/MM/yyyy HH:mm").format(new Date());
         areaReport.append(centraTesto("STAMPA REPORT DEL " + dataOra) + "\n\n");
 
-        // Costruzione delle righe (Q.tà + Nome a sinistra, Prezzo a destra)
         for (Map.Entry<String, double[]> entry : datiReport.entrySet()) {
             String nome = entry.getKey().toUpperCase();
             int quantita = (int) entry.getValue()[0];
@@ -40,7 +38,7 @@ public class SchermataStatistiche extends JFrame {
 
             String riga = formattaRiga(quantita + " " + nome, prezzoStr);
             areaReport.append(riga + "\n");
-            areaReport.append("------------------------------------------\n"); // Linea tratteggiata come in foto
+            areaReport.append("------------------------------------------\n");
         }
 
         areaReport.append("\n" + centraTesto("TOTALE DOCUMENTO CASSA") + "\n");
@@ -50,19 +48,47 @@ public class SchermataStatistiche extends JFrame {
         scroll.getVerticalScrollBar().setUnitIncrement(16);
         add(scroll, BorderLayout.CENTER);
 
-        // Pulsante di stampa futura
-        JButton btnStampa = new JButton("Stampa Report Fisico (ESC/POS)");
-        btnStampa.setBackground(new Color(70, 130, 180));
-        btnStampa.setForeground(Color.WHITE);
-        btnStampa.setFont(new Font("Arial", Font.BOLD, 16));
-        btnStampa.setPreferredSize(new Dimension(0, 50));
-        // btnStampa.addActionListener(e -> inviaAllaStampante()); // Lo collegheremo al modulo hardware dopo
+        // PANNELLO BOTTONI DI CHIUSURA
+        JPanel panelBottoni = new JPanel(new GridLayout(2, 1, 0, 10));
+        panelBottoni.setBorder(BorderFactory.createEmptyBorder(15, 10, 10, 10));
 
-        add(btnStampa, BorderLayout.SOUTH);
+        JButton btnStampa = new JButton("1. Stampa Report su Carta");
+        btnStampa.setBackground(new Color(70, 130, 180)); // Blu
+        btnStampa.setForeground(Color.WHITE);
+        btnStampa.setFont(new Font("Arial", Font.BOLD, 18));
+        btnStampa.setPreferredSize(new Dimension(0, 50));
+        btnStampa.addActionListener(e -> {
+            GestoreStampa stampante = new GestoreStampa();
+            stampante.stampaReportZ(incassoTotale, datiReport);
+            JOptionPane.showMessageDialog(this, "Stampa del resoconto inviata alla stampante!", "Stampa Inviata", JOptionPane.INFORMATION_MESSAGE);
+        });
+
+        JButton btnAzzera = new JButton("2. Reset Totale (Nuova Festa / Pulizia)");
+        btnAzzera.setBackground(new Color(220, 20, 60)); // Rosso
+        btnAzzera.setForeground(Color.WHITE);
+        btnAzzera.setFont(new Font("Arial", Font.BOLD, 16));
+        btnAzzera.setPreferredSize(new Dimension(0, 50));
+        btnAzzera.addActionListener(e -> {
+            int scelta = JOptionPane.showConfirmDialog(this,
+                    "ATTENZIONE PERICOLO!\nQuesta operazione cancellerà:\n- Tutti gli scontrini e gli incassi\n- L'intero listino prodotti (dovrai reinserire i piatti della nuova festa)\n\nVuoi procedere con il reset totale?",
+                    "Conferma Reset Totale",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE);
+
+            if (scelta == JOptionPane.YES_OPTION) {
+                dao.svuotaTuttoDefinitivo();
+                JOptionPane.showMessageDialog(this, "Reset completato.\nOra il database è completamente pulito e pronto per una nuova festa!", "Pulizia Effettuata", JOptionPane.INFORMATION_MESSAGE);
+                this.dispose();
+            }
+        });
+
+        panelBottoni.add(btnStampa);
+        panelBottoni.add(btnAzzera);
+        add(panelBottoni, BorderLayout.SOUTH);
+
         setLocationRelativeTo(null);
     }
 
-    // Metodi per l'impaginazione tipografica
     private String formattaRiga(String sinistra, String destra) {
         int spaziMancanti = LARGHEZZA_REPORT - sinistra.length() - destra.length();
         if (spaziMancanti < 1) {

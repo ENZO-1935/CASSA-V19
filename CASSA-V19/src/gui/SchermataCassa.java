@@ -13,6 +13,7 @@ import java.util.Map;
 
 public class SchermataCassa extends JFrame {
     private JPanel panelListaScontrino;
+    private JPanel panelGriglia; // Reso variabile di classe per poterlo aggiornare
     private JLabel lblTotale;
     private JButton btnPaga;
     private Carrello carrello;
@@ -24,23 +25,20 @@ public class SchermataCassa extends JFrame {
 
         setTitle("Cassa Automatica Sagra - Modalità Vendita");
         setSize(1000, 700);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setLayout(new BorderLayout());
 
         // --- PANNELLO PRODOTTI (SINISTRA) ---
-        // Usiamo un GridLayout a 3 colonne per costringere i bottoni ad andare a capo
-        JPanel panelGriglia = new JPanel(new GridLayout(0, 3, 15, 15));
+        panelGriglia = new JPanel(new GridLayout(0, 3, 15, 15));
         caricaBottoniProdotti(panelGriglia);
 
-        // Lo ancoriamo in alto (NORTH) così se hai solo 2 prodotti non si allungano a dismisura
         JPanel panelProdotti = new JPanel(new BorderLayout());
         panelProdotti.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
         panelProdotti.add(panelGriglia, BorderLayout.NORTH);
 
-        // Aggiungiamo lo scroll verticale per quando il listino sarà molto lungo
         JScrollPane scrollProdotti = new JScrollPane(panelProdotti);
         scrollProdotti.getVerticalScrollBar().setUnitIncrement(16);
-        scrollProdotti.setBorder(null); // Rimuove il bordo fastidioso
+        scrollProdotti.setBorder(null);
 
         // --- PANNELLO SCONTRINO (DESTRA) ---
         JPanel panelScontrino = new JPanel(new BorderLayout());
@@ -54,7 +52,6 @@ public class SchermataCassa extends JFrame {
         scrollScontrino.getVerticalScrollBar().setUnitIncrement(16);
         panelScontrino.add(scrollScontrino, BorderLayout.CENTER);
 
-        // Area pulsanti inferiore
         JPanel panelInferioreDestra = new JPanel(new BorderLayout());
         panelInferioreDestra.setBorder(BorderFactory.createEmptyBorder(10, 5, 5, 5));
 
@@ -84,12 +81,23 @@ public class SchermataCassa extends JFrame {
         panelInferioreDestra.add(panelPulsanti, BorderLayout.CENTER);
         panelScontrino.add(panelInferioreDestra, BorderLayout.SOUTH);
 
-        // Aggiungiamo i due blocchi principali alla finestra
         add(scrollProdotti, BorderLayout.CENTER);
         add(panelScontrino, BorderLayout.EAST);
         setLocationRelativeTo(null);
 
         aggiornaVisualizzazione();
+    }
+
+    // CORRETTO: Ogni volta che la finestra viene aperta/mostrata, ricarica i bottoni dal database in automatico
+    @Override
+    public void addNotify() {
+        super.addNotify();
+        if (panelGriglia != null) {
+            panelGriglia.removeAll();
+            caricaBottoniProdotti(panelGriglia);
+            panelGriglia.revalidate();
+            panelGriglia.repaint();
+        }
     }
 
     private void caricaBottoniProdotti(JPanel panel) {

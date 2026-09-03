@@ -6,53 +6,47 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ProdottoDAO {
-    // Stesso percorso del file usato nel DatabaseManager
     private static final String URL = "jdbc:sqlite:cassa_sagra.db";
 
-    // Metodo per salvare un nuovo prodotto nel database
     public void inserisciProdotto(Prodotto prodotto) {
-        String sql = "INSERT INTO prodotto(id_gruppo, nome, prezzo, quantita_disponibile, is_buono_sconto) VALUES(?,?,?,?,?)";
+        String sql = "INSERT INTO prodotto(nome, prezzo, id_gruppo) VALUES (?, ?, ?)";
 
         try (Connection conn = DriverManager.getConnection(URL);
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-            pstmt.setInt(1, prodotto.getIdGruppo());
-            pstmt.setString(2, prodotto.getNome());
-            pstmt.setDouble(3, prodotto.getPrezzo());
-            pstmt.setInt(4, prodotto.getQuantitaDisponibile());
-            pstmt.setInt(5, prodotto.isBuonoSconto() ? 1 : 0); // SQLite gestisce i boolean come 1 o 0
-
+            pstmt.setString(1, prodotto.getNome());
+            pstmt.setDouble(2, prodotto.getPrezzo());
+            pstmt.setInt(3, prodotto.getIdGruppo());
             pstmt.executeUpdate();
-            System.out.println("Salvato nel DB: " + prodotto.getNome());
 
         } catch (SQLException e) {
-            System.out.println("Errore inserimento: " + e.getMessage());
+            System.err.println("Errore inserimento prodotto: " + e.getMessage());
         }
     }
 
-    // Metodo per leggere tutti i prodotti (servirà per disegnare i bottoni sulla cassa)
+    // Nome unificato per essere richiamato correttamente da SchermataCassa
     public List<Prodotto> ottieniTuttiProdotti() {
-        List<Prodotto> lista = new ArrayList<>();
-        String sql = "SELECT * FROM prodotto";
+        List<Prodotto> prodotti = new ArrayList<>();
+        String sql = "SELECT id, nome, prezzo, id_gruppo FROM prodotto";
 
         try (Connection conn = DriverManager.getConnection(URL);
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
 
             while (rs.next()) {
-                Prodotto p = new Prodotto(
-                        rs.getInt("id_prodotto"),
-                        rs.getInt("id_gruppo"),
-                        rs.getString("nome"),
-                        rs.getDouble("prezzo"),
-                        rs.getInt("quantita_disponibile"),
-                        rs.getInt("is_buono_sconto") == 1
-                );
-                lista.add(p);
+                int id = rs.getInt("id");
+                String nome = rs.getString("nome");
+                double prezzo = rs.getDouble("prezzo");
+                int idGruppo = rs.getInt("id_gruppo");
+
+                Prodotto p = new Prodotto(id, idGruppo, nome, prezzo, 0, false);
+                prodotti.add(p);
             }
+
         } catch (SQLException e) {
-            System.out.println("Errore lettura: " + e.getMessage());
+            System.err.println("Errore lettura prodotti: " + e.getMessage());
         }
-        return lista;
+
+        return prodotti;
     }
 }

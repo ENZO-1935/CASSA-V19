@@ -16,7 +16,6 @@ public class OrdineDAO {
         String sqlDettaglio = "INSERT INTO dettaglio_ordine(numero_scontrino, nome_prodotto, quantita, prezzo_totale) VALUES (?, ?, ?, ?)";
 
         try (Connection conn = DriverManager.getConnection(URL)) {
-            // 1. Salva il totale dello scontrino
             try (PreparedStatement pstmt = conn.prepareStatement(sqlOrdine)) {
                 pstmt.setInt(1, prossimoNumero);
                 pstmt.setLong(2, System.currentTimeMillis());
@@ -24,13 +23,12 @@ public class OrdineDAO {
                 pstmt.executeUpdate();
             }
 
-            // 2. Salva ogni singolo articolo dello scontrino
             try (PreparedStatement pstmtDet = conn.prepareStatement(sqlDettaglio)) {
                 for (Map.Entry<Prodotto, Integer> entry : carrello.getProdotti().entrySet()) {
                     pstmtDet.setInt(1, prossimoNumero);
                     pstmtDet.setString(2, entry.getKey().getNome());
-                    pstmtDet.setInt(3, entry.getValue()); // Quantità
-                    pstmtDet.setDouble(4, entry.getKey().getPrezzo() * entry.getValue()); // Prezzo riga
+                    pstmtDet.setInt(3, entry.getValue());
+                    pstmtDet.setDouble(4, entry.getKey().getPrezzo() * entry.getValue());
                     pstmtDet.executeUpdate();
                 }
             }
@@ -44,14 +42,14 @@ public class OrdineDAO {
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
             if (rs.next()) return rs.getDouble("incasso");
-        } catch (SQLException e) {}
+        } catch (SQLException e) {
+            System.err.println("Errore calcolo incasso: " + e.getMessage());
+        }
         return 0.0;
     }
 
-    // NUOVO: Crea la statistica per il report di chiusura
     public Map<String, double[]> generaReportArticoli() {
         Map<String, double[]> report = new LinkedHashMap<>();
-        // Somma le quantità e gli incassi raggruppandoli per nome prodotto
         String sql = "SELECT nome_prodotto, SUM(quantita) as tot_qta, SUM(prezzo_totale) as tot_prezzo FROM dettaglio_ordine GROUP BY nome_prodotto ORDER BY nome_prodotto";
 
         try (Connection conn = DriverManager.getConnection(URL);
@@ -75,8 +73,22 @@ public class OrdineDAO {
         try (Connection conn = DriverManager.getConnection(URL);
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
-            if (rs.next()) return rs.getInt("max_num") + 1;
+            if (rs.next()) {
+                int max = rs.getInt("max_num");
+                return max > 0 ? max + 1 : 1;
+            }
         }
         return 1;
+    }
+
+    public void svuotaTuttoDefinitivo() {
+        try (Connection conn = DriverManager.getConnection(URL);
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("DELETE FROM ordine");
+            stmt.execute("DELETE FROM dettaglio_ordine");
+            stmt.execute("DELETE FROM prodotto");
+        } catch (SQLException e) {
+            System.err.println("Errore azzeramento totale: " + e.getMessage());
+        }
     }
 }
