@@ -1,3 +1,5 @@
+package model;
+
 public class Prodotto {
     private int idProdotto;
     private int idGruppo; // FK

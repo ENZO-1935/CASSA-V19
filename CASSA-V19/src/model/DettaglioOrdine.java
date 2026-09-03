@@ -1,3 +1,5 @@
+package model;
+
 public class DettaglioOrdine {
     private int idOrdine;
     private int idProdotto;

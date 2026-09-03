@@ -1,3 +1,5 @@
+package model;
+
 public class Ordine {
     private int idOrdine;
     private int numeroScontrino;

@@ -1,3 +1,5 @@
+package model;
+
 public class GruppoStampa {
     private int idGruppo;
     private String nome;
