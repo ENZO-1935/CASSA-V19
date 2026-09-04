@@ -13,7 +13,7 @@ import java.util.Map;
 
 public class SchermataCassa extends JFrame {
     private JPanel panelListaScontrino;
-    private JPanel panelGriglia; // Reso variabile di classe per poterlo aggiornare
+    private JPanel panelGriglia;
     private JLabel lblTotale;
     private JButton btnPaga;
     private Carrello carrello;
@@ -28,9 +28,7 @@ public class SchermataCassa extends JFrame {
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setLayout(new BorderLayout());
 
-        // --- PANNELLO PRODOTTI (SINISTRA) ---
         panelGriglia = new JPanel(new GridLayout(0, 3, 15, 15));
-        caricaBottoniProdotti(panelGriglia);
 
         JPanel panelProdotti = new JPanel(new BorderLayout());
         panelProdotti.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
@@ -40,7 +38,6 @@ public class SchermataCassa extends JFrame {
         scrollProdotti.getVerticalScrollBar().setUnitIncrement(16);
         scrollProdotti.setBorder(null);
 
-        // --- PANNELLO SCONTRINO (DESTRA) ---
         JPanel panelScontrino = new JPanel(new BorderLayout());
         panelScontrino.setPreferredSize(new Dimension(400, 0));
 
@@ -85,23 +82,24 @@ public class SchermataCassa extends JFrame {
         add(panelScontrino, BorderLayout.EAST);
         setLocationRelativeTo(null);
 
+        // EVENTO INFALLIBILE: Scatta ogni volta che la finestra viene cliccata o aperta
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowActivated(java.awt.event.WindowEvent e) {
+                aggiornaListinoBottoni();
+            }
+        });
+
         aggiornaVisualizzazione();
     }
 
-    // CORRETTO: Ogni volta che la finestra viene aperta/mostrata, ricarica i bottoni dal database in automatico
-    @Override
-    public void addNotify() {
-        super.addNotify();
-        if (panelGriglia != null) {
-            panelGriglia.removeAll();
-            caricaBottoniProdotti(panelGriglia);
-            panelGriglia.revalidate();
-            panelGriglia.repaint();
-        }
-    }
+    // Metodo dedicato esclusivamente a svuotare e ricaricare i bottoni
+    private void aggiornaListinoBottoni() {
+        panelGriglia.removeAll();
 
-    private void caricaBottoniProdotti(JPanel panel) {
         List<Prodotto> menu = prodottoDAO.ottieniTuttiProdotti();
+        System.out.println("DEBUG - Prodotti trovati nel database: " + menu.size()); // Controlla la console!
+
         for (Prodotto p : menu) {
             JButton btn = new JButton("<html><center>" + p.getNome() + "<br><br><b>" +
                     String.format("%.2f", p.getPrezzo()) + "€</b></center></html>");
@@ -121,8 +119,11 @@ public class SchermataCassa extends JFrame {
                 carrello.aggiungiProdotto(p);
                 aggiornaVisualizzazione();
             });
-            panel.add(btn);
+            panelGriglia.add(btn);
         }
+
+        panelGriglia.revalidate();
+        panelGriglia.repaint();
     }
 
     private void aggiornaVisualizzazione() {
