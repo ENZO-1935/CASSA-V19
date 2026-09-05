@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'screens/menu_screen.dart'; // Questa riga è FONDAMENTALE per far funzionare MenuScreen
+import 'screens/menu_screen.dart';
 
 void main() {
   runApp(const CassaApp());
@@ -13,10 +13,11 @@ class CassaApp extends StatelessWidget {
     return MaterialApp(
       title: 'Cassa Sagra',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepOrange),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
         useMaterial3: true,
       ),
-      home: MenuScreen(), // Rimuovi 'const' qui se ci sono errori dopo l'importazione
+      home: const MenuScreen(),
+      debugShowCheckedModeBanner: false,
     );
   }
 }

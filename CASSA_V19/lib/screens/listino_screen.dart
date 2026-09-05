@@ -20,7 +20,7 @@ class _ListinoScreenState extends State<ListinoScreen> {
     widget.onAggiornato();
   }
 
-  // Finestra popup con sfumatura arancione
+  // Popup con sfumatura arancione morbida (stile sfondo icona cibo)
   void _mostraDialogProdotto({Prodotto? prodottoEsistente, int? index}) {
     final _nomeController = TextEditingController(text: prodottoEsistente?.nome ?? '');
     final _prezzoController = TextEditingController(
@@ -40,14 +40,14 @@ class _ListinoScreenState extends State<ListinoScreen> {
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFFFF9800), Color(0xFFE65100)], // Sfumatura Arancione
+                    colors: [Color(0xFFFFE0B2), Color(0xFFFFCC80)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
+                      color: Colors.black.withOpacity(0.15),
                       blurRadius: 10,
                       offset: const Offset(0, 5),
                     )
@@ -59,45 +59,51 @@ class _ListinoScreenState extends State<ListinoScreen> {
                   children: [
                     Text(
                       prodottoEsistente == null ? 'Nuovo Prodotto' : 'Modifica Prodotto',
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.orange.shade900),
                     ),
                     const SizedBox(height: 20),
                     TextField(
                       controller: _nomeController,
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: Colors.black87),
                       decoration: InputDecoration(
                         labelText: 'Nome Prodotto',
-                        labelStyle: const TextStyle(color: Colors.white70),
-                        enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white70), borderRadius: BorderRadius.circular(10)),
-                        focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white), borderRadius: BorderRadius.circular(10)),
+                        labelStyle: TextStyle(color: Colors.orange.shade900),
+                        enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.orange.shade300), borderRadius: BorderRadius.circular(10)),
+                        focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.orange.shade800), borderRadius: BorderRadius.circular(10)),
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(0.7),
                       ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _prezzoController,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: Colors.black87),
                       decoration: InputDecoration(
                         labelText: 'Prezzo (€)',
-                        labelStyle: const TextStyle(color: Colors.white70),
-                        enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white70), borderRadius: BorderRadius.circular(10)),
-                        focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white), borderRadius: BorderRadius.circular(10)),
+                        labelStyle: TextStyle(color: Colors.orange.shade900),
+                        enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.orange.shade300), borderRadius: BorderRadius.circular(10)),
+                        focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.orange.shade800), borderRadius: BorderRadius.circular(10)),
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(0.7),
                       ),
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       value: _tipologiaSelezionata,
-                      dropdownColor: Colors.deepOrange.shade800,
-                      style: const TextStyle(color: Colors.white),
+                      dropdownColor: Colors.orange.shade100,
+                      style: const TextStyle(color: Colors.black87),
                       decoration: InputDecoration(
                         labelText: 'Tipologia',
-                        labelStyle: const TextStyle(color: Colors.white70),
-                        enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white70), borderRadius: BorderRadius.circular(10)),
-                        focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white), borderRadius: BorderRadius.circular(10)),
+                        labelStyle: TextStyle(color: Colors.orange.shade900),
+                        enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.orange.shade300), borderRadius: BorderRadius.circular(10)),
+                        focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.orange.shade800), borderRadius: BorderRadius.circular(10)),
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(0.7),
                       ),
                       items: const [
-                        DropdownMenuItem(value: 'cibo', child: Text('Cibo (Arancione)', style: TextStyle(color: Colors.white))),
-                        DropdownMenuItem(value: 'bevanda', child: Text('Bevanda (Blu)', style: TextStyle(color: Colors.white))),
+                        DropdownMenuItem(value: 'cibo', child: Text('Cibo (Arancione)')),
+                        DropdownMenuItem(value: 'bevanda', child: Text('Bevanda (Blu)')),
                       ],
                       onChanged: (val) {
                         if (val != null) {
@@ -113,13 +119,13 @@ class _ListinoScreenState extends State<ListinoScreen> {
                       children: [
                         TextButton(
                           onPressed: () => Navigator.pop(context),
-                          child: const Text('Annulla', style: TextStyle(color: Colors.white70, fontSize: 16)),
+                          child: Text('Annulla', style: TextStyle(color: Colors.orange.shade900, fontSize: 16)),
                         ),
                         const SizedBox(width: 12),
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Colors.deepOrange.shade900,
+                            backgroundColor: Colors.indigo,
+                            foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
                           onPressed: () {
@@ -182,7 +188,7 @@ class _ListinoScreenState extends State<ListinoScreen> {
                 icon: const Icon(Icons.add),
                 label: const Text('Nuovo Prodotto', style: TextStyle(fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepOrange,
+                  backgroundColor: Colors.indigo,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                 ),
@@ -217,7 +223,7 @@ class _ListinoScreenState extends State<ListinoScreen> {
                         children: [
                           Text(
                               '${p.prezzo.toStringAsFixed(2)} €',
-                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.deepOrange)
+                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo)
                           ),
                           const SizedBox(width: 16),
                           IconButton(
@@ -225,7 +231,7 @@ class _ListinoScreenState extends State<ListinoScreen> {
                             onPressed: () => _mostraDialogProdotto(prodottoEsistente: p, index: index),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.deepOrange),
+                            icon: const Icon(Icons.delete, color: Colors.red),
                             onPressed: () => _eliminaProdotto(index),
                           ),
                         ],

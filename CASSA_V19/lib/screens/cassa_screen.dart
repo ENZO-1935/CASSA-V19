@@ -3,8 +3,13 @@ import '../models/prodotto.dart';
 
 class CassaScreen extends StatefulWidget {
   final List<Prodotto> prodotti;
+  final Function(Map<Prodotto, int>, double) onStampaScontrino;
 
-  const CassaScreen({super.key, required this.prodotti});
+  const CassaScreen({
+    super.key,
+    required this.prodotti,
+    required this.onStampaScontrino,
+  });
 
   @override
   State<CassaScreen> createState() => _CassaScreenState();
@@ -25,7 +30,13 @@ class _CassaScreenState extends State<CassaScreen> {
 
   void _rimuoviDalCarrello(Prodotto p) {
     setState(() {
-      _carrello.remove(p);
+      if (_carrello.containsKey(p)) {
+        if (_carrello[p]! > 1) {
+          _carrello[p] = _carrello[p]! - 1;
+        } else {
+          _carrello.remove(p);
+        }
+      }
     });
   }
 
@@ -43,6 +54,36 @@ class _CassaScreenState extends State<CassaScreen> {
     return totale;
   }
 
+  void _gestisciStampaScontrino() {
+    if (_carrello.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Il carrello è vuoto!')),
+      );
+      return;
+    }
+
+    double totale = _totaleIncasso;
+    widget.onStampaScontrino(Map.from(_carrello), totale);
+
+    // Mostra popup di successo
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Scontrino Stampato 🖨️'),
+        content: Text('Totale pagato: ${totale.toStringAsFixed(2)} €'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _svuotaCarrello();
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -54,7 +95,7 @@ class _CassaScreenState extends State<CassaScreen> {
       ),
       body: Row(
         children: [
-          // SINISTRA: Griglia Prodotti (aggiornata in tempo reale dal listino)
+          // SINISTRA: Griglia Prodotti
           Expanded(
             flex: 3,
             child: Padding(
@@ -134,20 +175,10 @@ class _CassaScreenState extends State<CassaScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 16.0),
                     child: Text(
                       'Totale: ${_totaleIncasso.toStringAsFixed(2)} €',
-                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.deepOrange),
+                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.indigo),
                     ),
                   ),
 
-                  SizedBox(
-                    width: double.infinity,
-                    height: 55,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700),
-                      onPressed: () {},
-                      child: const Text('Modifica Listino', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     height: 55,
@@ -162,8 +193,8 @@ class _CassaScreenState extends State<CassaScreen> {
                     width: double.infinity,
                     height: 55,
                     child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
-                      onPressed: () {},
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700),
+                      onPressed: _gestisciStampaScontrino,
                       child: const Text('Stampa Scontrino', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                     ),
                   ),
