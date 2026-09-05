@@ -15,35 +15,43 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public class SchermataStatistiche extends JFrame {
+public class SchermataStatistiche extends JPanel {
 
     private JLabel lblTotaleIncasso;
     private DefaultTableModel modelProdotti;
     private OrdineDAO ordineDAO;
+    private FinestraPrincipale mainFrame;
 
-    public SchermataStatistiche() {
+    public SchermataStatistiche(FinestraPrincipale main) {
+        this.mainFrame = main;
         ordineDAO = new OrdineDAO();
 
-        setTitle("Statistiche e Chiusura Cassa");
-        setSize(820, 650);
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        setLocationRelativeTo(null);
         setLayout(new BorderLayout(10, 10));
 
-        JPanel panelNord = new JPanel(new GridLayout(2, 1, 5, 5));
+        // --- BARRA SUPERIORE CON BOTTONE HOME E TITOLI ---
+        JPanel panelNord = new JPanel(new BorderLayout(15, 0));
         panelNord.setBorder(BorderFactory.createEmptyBorder(15, 20, 10, 20));
 
+        BottoneModerno btnHome = new BottoneModerno("◄ Torna alla Home", new Color(149, 165, 166), 15);
+        btnHome.setPreferredSize(new Dimension(180, 45));
+        btnHome.addActionListener(e -> mainFrame.navigaA("HOME"));
+
+        JPanel panelTitoli = new JPanel(new GridLayout(2, 1, 5, 5));
+
         JLabel lblTitolo = new JLabel("Statistiche, Stampa e Chiusura Evento", JLabel.CENTER);
-        lblTitolo.setFont(new Font("Arial", Font.BOLD, 20));
-        panelNord.add(lblTitolo);
+        lblTitolo.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        panelTitoli.add(lblTitolo);
 
         lblTotaleIncasso = new JLabel("Incasso Totale Attuale: € 0.00", JLabel.CENTER);
-        lblTotaleIncasso.setFont(new Font("Arial", Font.BOLD, 16));
-        lblTotaleIncasso.setForeground(new Color(34, 139, 34));
-        panelNord.add(lblTotaleIncasso);
+        lblTotaleIncasso.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        lblTotaleIncasso.setForeground(new Color(39, 174, 96));
+        panelTitoli.add(lblTotaleIncasso);
 
+        panelNord.add(btnHome, BorderLayout.WEST);
+        panelNord.add(panelTitoli, BorderLayout.CENTER);
         add(panelNord, BorderLayout.NORTH);
 
+        // --- TABELLA CENTRALE ---
         String[] colonne = {"Prodotto", "Quantità Totale", "Incasso Generato"};
         modelProdotti = new DefaultTableModel(colonne, 0) {
             @Override
@@ -53,47 +61,44 @@ public class SchermataStatistiche extends JFrame {
         };
 
         JTable tabella = new JTable(modelProdotti);
-        tabella.setFont(new Font("Arial", Font.PLAIN, 14));
-        tabella.setRowHeight(25);
-        tabella.getTableHeader().setFont(new Font("Arial", Font.BOLD, 14));
+        tabella.setFont(new Font("Segoe UI", Font.PLAIN, 15));
+        tabella.setRowHeight(28);
+        tabella.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 15));
 
         JScrollPane scrollPane = new JScrollPane(tabella);
         scrollPane.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
         add(scrollPane, BorderLayout.CENTER);
 
-        JPanel panelSud = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 15));
+        // --- PULSANTI IN BASSO ---
+        JPanel panelSud = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 15));
 
-        JButton btnAggiorna = new JButton("Aggiorna");
-        stilePulsante(btnAggiorna, new Color(70, 130, 180), 120);
+        BottoneModerno btnAggiorna = new BottoneModerno("Aggiorna", new Color(41, 128, 185), 15);
+        btnAggiorna.setPreferredSize(new Dimension(130, 45));
         btnAggiorna.addActionListener(e -> caricaDati());
 
-        JButton btnStampa = new JButton("Stampa Scontrino Chiusura");
-        stilePulsante(btnStampa, new Color(40, 40, 40), 200);
+        BottoneModerno btnStampa = new BottoneModerno("Stampa Scontrino Chiusura", new Color(52, 73, 94), 15);
+        btnStampa.setPreferredSize(new Dimension(240, 45));
         btnStampa.addActionListener(e -> stampaChiusura());
 
-        JButton btnArchivia = new JButton("Archivia & Azzera Cassa");
-        stilePulsante(btnArchivia, new Color(180, 50, 50), 190);
+        BottoneModerno btnArchivia = new BottoneModerno("Archivia & Azzera Cassa", new Color(231, 76, 60), 15);
+        btnArchivia.setPreferredSize(new Dimension(220, 45));
         btnArchivia.addActionListener(e -> archiviaEAzzeraCassa());
-
-        JButton btnChiudi = new JButton("Chiudi");
-        stilePulsante(btnChiudi, new Color(105, 105, 105), 100);
-        btnChiudi.addActionListener(e -> dispose());
 
         panelSud.add(btnAggiorna);
         panelSud.add(btnStampa);
         panelSud.add(btnArchivia);
-        panelSud.add(btnChiudi);
         add(panelSud, BorderLayout.SOUTH);
 
-        caricaDati();
-    }
+        // --- IL TRUCCO DELL'AGGIORNAMENTO AUTOMATICO ---
+        // Scatta da solo appena la pagina viene mostrata
+        this.addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentShown(java.awt.event.ComponentEvent e) {
+                caricaDati();
+            }
+        });
 
-    private void stilePulsante(JButton btn, Color colore, int larghezza) {
-        btn.setFont(new Font("Arial", Font.BOLD, 13));
-        btn.setBackground(colore);
-        btn.setForeground(Color.WHITE);
-        btn.setFocusPainted(false);
-        btn.setPreferredSize(new Dimension(larghezza, 40));
+        caricaDati(); // Caricamento iniziale
     }
 
     private void caricaDati() {
@@ -127,7 +132,6 @@ public class SchermataStatistiche extends JFrame {
             return;
         }
 
-        // 1. Recupera la lista degli eventi già esistenti
         List<String> opzioni = new ArrayList<>();
         opzioni.add("--- CREA NUOVO EVENTO ---");
         Map<String, Integer> eventiEsistenti = new LinkedHashMap<>();
@@ -165,7 +169,6 @@ public class SchermataStatistiche extends JFrame {
             idEventoDaAggiornare = eventiEsistenti.get(scelta);
         }
 
-        // 2. Crea il blocco testo per QUESTO specifico scontrino con data e ora
         String dataOra = new SimpleDateFormat("dd/MM/yyyy HH:mm").format(new Date());
         StringBuilder nuovoScontrino = new StringBuilder();
         nuovoScontrino.append("[SESSIONE] Chiusura Cassa del ").append(dataOra).append("\n");
@@ -195,12 +198,10 @@ public class SchermataStatistiche extends JFrame {
 
         double incassoTotaleAggiornato = incassoEsistente + incassoTotaleCorrente;
 
-        // Se c'erano vecchi dati senza tag sessione, diamo loro un'intestazione
         if (!dettagliDB.isEmpty() && !dettagliDB.startsWith("[SESSIONE]")) {
             dettagliDB = "[SESSIONE] Scontrini Precedenti\n" + dettagliDB;
         }
 
-        // Unisce la stringa vecchia con quella nuova separandole in modo netto
         String dettagliFinali;
         if (isNuovo) {
             dettagliFinali = nuovoScontrino.toString();
@@ -208,7 +209,6 @@ public class SchermataStatistiche extends JFrame {
             dettagliFinali = dettagliDB + (dettagliDB.endsWith("\n") ? "" : "\n") + "\n" + nuovoScontrino.toString();
         }
 
-        // 3. Salvataggio nel Database
         try (Connection conn = DatabaseManager.connetti()) {
             if (isNuovo) {
                 String sqlInsert = "INSERT INTO eventi_archiviati (nome_evento, incasso_totale, dettagli_vendite) VALUES (?, ?, ?)";
@@ -238,7 +238,7 @@ public class SchermataStatistiche extends JFrame {
                     "Operazione completata",
                     JOptionPane.INFORMATION_MESSAGE);
 
-            caricaDati();
+            caricaDati(); // Ricarica la tabella ripulendola
 
         } catch (SQLException ex) {
             JOptionPane.showMessageDialog(this, "Errore durante l'archiviazione: " + ex.getMessage(), "Errore", JOptionPane.ERROR_MESSAGE);

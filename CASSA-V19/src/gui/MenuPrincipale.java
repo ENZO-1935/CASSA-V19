@@ -7,20 +7,17 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.InputStream;
 
-public class MenuPrincipale extends JFrame {
+public class MenuPrincipale extends JPanel { // 1. Cambiato in JPanel
 
     private BufferedImage logoScalato = null;
     private boolean logoCaricatoCorrettamente = false;
+    private FinestraPrincipale mainFrame; // 2. Riferimento alla finestra principale
 
-    public MenuPrincipale() {
-        setTitle("Cassa Automatica Sagra - Menu Principale");
-        setSize(500, 850); // Leggermente più alto per far respirare i pulsanti
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLocationRelativeTo(null);
-        setLayout(new BorderLayout());
+    public MenuPrincipale(FinestraPrincipale main) { // 3. Costruttore aggiornato
+        this.mainFrame = main;
 
-        // Colore di sfondo moderno (Grigio chiarissimo "Cloud")
-        getContentPane().setBackground(new Color(245, 246, 250));
+        setLayout(new BorderLayout()); // Manteniamo il layout originale
+        setBackground(new Color(245, 246, 250)); // Colore di sfondo moderno
 
         // Caricamento del logo (inalterato per mantenere la massima qualità)
         try {
@@ -42,9 +39,8 @@ public class MenuPrincipale extends JFrame {
 
             if (rawImage != null) {
                 logoScalato = riduciImmagineAltaQualita(rawImage, 220, 220);
-                BufferedImage iconaWin = riduciImmagineAltaQualita(rawImage, 64, 64);
-                setIconImage(iconaWin);
                 logoCaricatoCorrettamente = true;
+                // La gestione dell'icona (setIconImage) va messa in FinestraPrincipale, non qui nel JPanel
             }
         } catch (Exception e) {
             System.out.println("Errore caricamento logo: " + e.getMessage());
@@ -80,7 +76,6 @@ public class MenuPrincipale extends JFrame {
         panelContenuto.add(panelLogo);
         panelContenuto.add(Box.createRigidArea(new Dimension(0, 25)));
 
-        // Titolo con Font moderno e colore blu notte scuro scuro
         JLabel lblTitolo = new JLabel("SAGRA PAESANA v19");
         lblTitolo.setFont(new Font("Segoe UI", Font.BOLD, 26));
         lblTitolo.setForeground(new Color(44, 62, 80));
@@ -88,45 +83,39 @@ public class MenuPrincipale extends JFrame {
         panelContenuto.add(lblTitolo);
         panelContenuto.add(Box.createRigidArea(new Dimension(0, 40)));
 
-        // =========================================================================
-        // QUI USIAMO LA TUA NUOVA CLASSE "BottoneModerno"
-        // Formato: nuovo BottoneModerno("Testo", ColoreSfondo, RaggioArrotondamento)
-        // =========================================================================
-
-        // 1. Cassa (Verde Smeraldo opaco moderno)
         BottoneModerno btnCassa = new BottoneModerno("1. Apri Cassa (Vendita)", new Color(39, 174, 96), 25);
         impostaStileBottone(btnCassa);
-        btnCassa.addActionListener(e -> new SchermataCassa().setVisible(true));
+        // 4. Cambiata l'azione: ora naviga verso il pannello della Cassa
+        btnCassa.addActionListener(e -> mainFrame.navigaA("CASSA"));
         panelContenuto.add(btnCassa);
-        panelContenuto.add(Box.createRigidArea(new Dimension(0, 20))); // Spazio tra i bottoni
+        panelContenuto.add(Box.createRigidArea(new Dimension(0, 20)));
 
-        // 2. Admin (Blu "Belize" moderno)
         BottoneModerno btnAdmin = new BottoneModerno("2. Gestione Listino (Admin)", new Color(41, 128, 185), 25);
         impostaStileBottone(btnAdmin);
-        btnAdmin.addActionListener(e -> new SchermataAdmin().setVisible(true));
+        // 4. Cambiata l'azione
+        btnAdmin.addActionListener(e -> mainFrame.navigaA("ADMIN"));
         panelContenuto.add(btnAdmin);
         panelContenuto.add(Box.createRigidArea(new Dimension(0, 20)));
 
-        // 3. Statistiche (Arancione tramonto moderno)
         BottoneModerno btnStats = new BottoneModerno("3. Statistiche & Chiusura", new Color(243, 156, 18), 25);
         impostaStileBottone(btnStats);
-        btnStats.addActionListener(e -> new SchermataStatistiche().setVisible(true));
+        // 4. Cambiata l'azione
+        btnStats.addActionListener(e -> mainFrame.navigaA("STATISTICHE"));
         panelContenuto.add(btnStats);
         panelContenuto.add(Box.createRigidArea(new Dimension(0, 20)));
 
-        // 4. Storico (Grigio cemento elegante)
         BottoneModerno btnStorico = new BottoneModerno("4. Storico Eventi Passati", new Color(149, 165, 166), 25);
         impostaStileBottone(btnStorico);
-        btnStorico.addActionListener(e -> new SchermataStoricoEventi().setVisible(true));
+        // 4. Cambiata l'azione
+        btnStorico.addActionListener(e -> mainFrame.navigaA("STORICO"));
         panelContenuto.add(btnStorico);
 
         add(panelContenuto, BorderLayout.CENTER);
     }
 
-    // Metodo di utilità per non ripetere le dimensioni su ogni bottone
     private void impostaStileBottone(BottoneModerno btn) {
         btn.setAlignmentX(Component.CENTER_ALIGNMENT);
-        btn.setPreferredSize(new Dimension(360, 60)); // Più alti (60px) per un look "App" touch
+        btn.setPreferredSize(new Dimension(360, 60));
         btn.setMaximumSize(new Dimension(360, 60));
     }
 

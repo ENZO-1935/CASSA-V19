@@ -18,6 +18,10 @@ public class Prodotto {
     }
 
     public int getIdProdotto() { return idProdotto; }
+
+    // NUOVO METODO AGGIUNTO: Risolve l'errore rosso nel PopupModificaProdotti
+    public int getId() { return idProdotto; }
+
     public int getIdGruppo() { return idGruppo; }
     public String getNome() { return nome; }
     public double getPrezzo() { return prezzo; }

@@ -6,23 +6,33 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.sql.*;
 
-public class SchermataStoricoEventi extends JFrame {
+public class SchermataStoricoEventi extends JPanel {
 
     private DefaultTableModel model;
     private JTable tabella;
+    private FinestraPrincipale mainFrame;
 
-    public SchermataStoricoEventi() {
-        setTitle("Storico Eventi e Sagre Passate");
-        setSize(850, 500);
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        setLocationRelativeTo(null);
+    public SchermataStoricoEventi(FinestraPrincipale main) {
+        this.mainFrame = main;
+
         setLayout(new BorderLayout(10, 10));
 
-        JLabel lblTitolo = new JLabel("Archivio Storico Incassi ed Eventi", JLabel.CENTER);
-        lblTitolo.setFont(new Font("Arial", Font.BOLD, 20));
-        lblTitolo.setBorder(BorderFactory.createEmptyBorder(15, 0, 10, 0));
-        add(lblTitolo, BorderLayout.NORTH);
+        // --- BARRA SUPERIORE CON BOTTONE HOME E TITOLO ---
+        JPanel panelNord = new JPanel(new BorderLayout(15, 0));
+        panelNord.setBorder(BorderFactory.createEmptyBorder(15, 20, 10, 20));
 
+        BottoneModerno btnHome = new BottoneModerno("◄ Torna alla Home", new Color(149, 165, 166), 15);
+        btnHome.setPreferredSize(new Dimension(180, 45));
+        btnHome.addActionListener(e -> mainFrame.navigaA("HOME"));
+
+        JLabel lblTitolo = new JLabel("Archivio Storico Incassi ed Eventi", JLabel.CENTER);
+        lblTitolo.setFont(new Font("Segoe UI", Font.BOLD, 22));
+
+        panelNord.add(btnHome, BorderLayout.WEST);
+        panelNord.add(lblTitolo, BorderLayout.CENTER);
+        add(panelNord, BorderLayout.NORTH);
+
+        // --- TABELLA CENTRALE ---
         String[] colonne = {"ID", "Nome Evento", "Data Chiusura", "Incasso Totale"};
         model = new DefaultTableModel(colonne, 0) {
             @Override
@@ -32,9 +42,9 @@ public class SchermataStoricoEventi extends JFrame {
         };
 
         tabella = new JTable(model);
-        tabella.setFont(new Font("Arial", Font.PLAIN, 14));
-        tabella.setRowHeight(25);
-        tabella.getTableHeader().setFont(new Font("Arial", Font.BOLD, 14));
+        tabella.setFont(new Font("Segoe UI", Font.PLAIN, 15));
+        tabella.setRowHeight(28);
+        tabella.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 15));
 
         tabella.getColumnModel().getColumn(0).setMaxWidth(50);
 
@@ -44,45 +54,24 @@ public class SchermataStoricoEventi extends JFrame {
         scrollPane.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
         add(scrollPane, BorderLayout.CENTER);
 
-        // Pannello Pulsanti in basso
+        // --- PULSANTI IN BASSO ---
         JPanel panelBasso = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 15));
 
-        JButton btnDettaglio = new JButton("Visualizza Scontrino");
-        btnDettaglio.setFont(new Font("Arial", Font.BOLD, 13));
-        btnDettaglio.setBackground(new Color(40, 110, 180));
-        btnDettaglio.setForeground(Color.WHITE);
-        btnDettaglio.setFocusPainted(false);
-        btnDettaglio.setPreferredSize(new Dimension(180, 40));
+        BottoneModerno btnDettaglio = new BottoneModerno("Visualizza Scontrino", new Color(41, 128, 185), 15);
+        btnDettaglio.setPreferredSize(new Dimension(200, 45));
         btnDettaglio.addActionListener(e -> apriDettaglioEvento());
 
-        JButton btnElimina = new JButton("Elimina Evento");
-        btnElimina.setFont(new Font("Arial", Font.BOLD, 13));
-        btnElimina.setBackground(new Color(180, 50, 50));
-        btnElimina.setForeground(Color.WHITE);
-        btnElimina.setFocusPainted(false);
-        btnElimina.setPreferredSize(new Dimension(150, 40));
+        BottoneModerno btnElimina = new BottoneModerno("Elimina Evento", new Color(231, 76, 60), 15);
+        btnElimina.setPreferredSize(new Dimension(160, 45));
         btnElimina.addActionListener(e -> eliminaEvento());
 
-        JButton btnAggiorna = new JButton("Aggiorna");
-        btnAggiorna.setFont(new Font("Arial", Font.BOLD, 13));
-        btnAggiorna.setBackground(new Color(70, 130, 180));
-        btnAggiorna.setForeground(Color.WHITE);
-        btnAggiorna.setFocusPainted(false);
-        btnAggiorna.setPreferredSize(new Dimension(120, 40));
+        BottoneModerno btnAggiorna = new BottoneModerno("Aggiorna", new Color(39, 174, 96), 15);
+        btnAggiorna.setPreferredSize(new Dimension(130, 45));
         btnAggiorna.addActionListener(e -> caricaDatiStorico());
-
-        JButton btnChiudi = new JButton("Chiudi");
-        btnChiudi.setFont(new Font("Arial", Font.BOLD, 13));
-        btnChiudi.setBackground(new Color(105, 105, 105));
-        btnChiudi.setForeground(Color.WHITE);
-        btnChiudi.setFocusPainted(false);
-        btnChiudi.setPreferredSize(new Dimension(120, 40));
-        btnChiudi.addActionListener(e -> dispose());
 
         panelBasso.add(btnDettaglio);
         panelBasso.add(btnElimina);
         panelBasso.add(btnAggiorna);
-        panelBasso.add(btnChiudi);
         add(panelBasso, BorderLayout.SOUTH);
     }
 

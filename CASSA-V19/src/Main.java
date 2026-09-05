@@ -1,4 +1,4 @@
-import gui.MenuPrincipale;
+import gui.FinestraPrincipale; // Modificato per importare il contenitore principale
 import javax.swing.*;
 import javax.swing.plaf.ColorUIResource;
 import java.awt.*;
@@ -37,10 +37,10 @@ public class Main {
             System.out.println("Errore di caricamento grafica: " + e.getMessage());
         }
 
-        // Avvia l'interfaccia principale
+        // 3. Avvia la nuova architettura a singola finestra (Single Page Application)
         SwingUtilities.invokeLater(() -> {
-            MenuPrincipale menu = new MenuPrincipale();
-            menu.setVisible(true);
+            FinestraPrincipale app = new FinestraPrincipale();
+            app.setVisible(true);
         });
     }
 }
