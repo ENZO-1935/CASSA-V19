@@ -24,13 +24,14 @@ tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
 
-// FORZATURA VERSIONI PLUGIN (Risolve il problema della stampante)
+// FORZATURA VERSIONI PLUGIN (Risolve il blocco AAR per la stampante)
 subprojects {
-    afterEvaluate {
-        if (plugins.hasPlugin("com.android.library")) {
-            configure<com.android.build.gradle.LibraryExtension> {
-                compileSdk = 36
-            }
-        }
+    val updateSdk = Action<Project> {
+        extensions.findByType<com.android.build.gradle.LibraryExtension>()?.compileSdk = 36
+    }
+    if (state.executed) {
+        updateSdk.execute(this)
+    } else {
+        afterEvaluate(updateSdk)
     }
 }

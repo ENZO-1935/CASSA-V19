@@ -15,6 +15,18 @@ class ListinoScreen extends StatefulWidget {
 
 class _ListinoScreenState extends State<ListinoScreen> {
 
+  Map<String, dynamic> _rilevaIconaETipologia(String nomeProdotto) {
+    String nomeLower = nomeProdotto.toLowerCase().trim();
+
+    if (nomeLower.contains('pizza') || nomeLower.contains('panino') || nomeLower.contains('hot dog') ||
+        nomeLower.contains('patatine') || nomeLower.contains('pasta') || nomeLower.contains('carne') ||
+        nomeLower.contains('salsiccia') || nomeLower.contains('focaccia') || nomeLower.contains('dolce') ||
+        nomeLower.contains('gelato') || nomeLower.contains('frittura') || nomeLower.contains('piadina')) {
+      return {'tipologia': 'cibo'};
+    }
+    return {'tipologia': 'bevanda'};
+  }
+
   void _eliminaProdotto(int index) {
     setState(() {
       widget.prodotti.removeAt(index);
@@ -61,15 +73,13 @@ class _ListinoScreenState extends State<ListinoScreen> {
                         style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.orange.shade900),
                       ),
                       const SizedBox(height: 16),
-
-                      // ZONA SCELTA IMMAGINE
                       Center(
                         child: GestureDetector(
                           onTap: () async {
                             final picker = ImagePicker();
                             final pickedFile = await picker.pickImage(
                                 source: ImageSource.gallery,
-                                maxWidth: 300, // Comprime la foto per non bloccare l'app
+                                maxWidth: 300,
                                 imageQuality: 70
                             );
                             if (pickedFile != null) {
@@ -92,12 +102,20 @@ class _ListinoScreenState extends State<ListinoScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      const Center(child: Text('Tocca per aggiungere una foto', style: TextStyle(fontSize: 12, color: Colors.black54))),
+                      const Center(child: Text('Tocca per aggiungere una foto (opzionale)', style: TextStyle(fontSize: 12, color: Colors.black54))),
 
                       const SizedBox(height: 16),
                       TextField(
                         controller: _nomeController,
                         style: const TextStyle(color: Colors.black87),
+                        onChanged: (val) {
+                          if (prodottoEsistente == null) {
+                            final rilevato = _rilevaIconaETipologia(val);
+                            setStateDialog(() {
+                              _tipologiaSelezionata = rilevato['tipologia'];
+                            });
+                          }
+                        },
                         decoration: InputDecoration(
                           labelText: 'Nome Prodotto',
                           labelStyle: TextStyle(color: Colors.orange.shade900),
@@ -127,7 +145,7 @@ class _ListinoScreenState extends State<ListinoScreen> {
                         dropdownColor: Colors.orange.shade100,
                         style: const TextStyle(color: Colors.black87),
                         decoration: InputDecoration(
-                          labelText: 'Tipologia',
+                          labelText: 'Tipologia (Rilevata automaticamente)',
                           labelStyle: TextStyle(color: Colors.orange.shade900),
                           enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.orange.shade300), borderRadius: BorderRadius.circular(10)),
                           focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.orange.shade800), borderRadius: BorderRadius.circular(10)),
@@ -143,20 +161,22 @@ class _ListinoScreenState extends State<ListinoScreen> {
                         },
                       ),
                       const SizedBox(height: 24),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
+
+                      Wrap(
+                        alignment: WrapAlignment.end,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 8,
                         children: [
-                          if (_immagineBase64Selezionata != null) // Bottone per rimuovere la foto
+                          if (_immagineBase64Selezionata != null)
                             IconButton(
                               icon: const Icon(Icons.delete_outline, color: Colors.red),
                               onPressed: () => setStateDialog(() => _immagineBase64Selezionata = null),
                             ),
-                          const Spacer(),
                           TextButton(
                             onPressed: () => Navigator.pop(context),
                             child: Text('Annulla', style: TextStyle(color: Colors.orange.shade900, fontSize: 16)),
                           ),
-                          const SizedBox(width: 8),
                           ElevatedButton(
                             style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                             onPressed: () {
@@ -170,7 +190,7 @@ class _ListinoScreenState extends State<ListinoScreen> {
                                     nome: nome,
                                     prezzo: prezzo,
                                     tipologia: _tipologiaSelezionata,
-                                    immagineBase64: _immagineBase64Selezionata, // Salva la foto nel prodotto
+                                    immagineBase64: _immagineBase64Selezionata,
                                   );
                                   if (prodottoEsistente == null) {
                                     widget.prodotti.add(nuovoProdotto);
@@ -207,7 +227,8 @@ class _ListinoScreenState extends State<ListinoScreen> {
         surfaceTintColor: Colors.transparent,
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        // Margine inferiore ridotto per chiudere lo spazio grigio
+        padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 24.0),
         child: Column(
           children: [
             Align(
@@ -221,7 +242,15 @@ class _ListinoScreenState extends State<ListinoScreen> {
             ),
             const SizedBox(height: 20),
             Expanded(
-              child: ListView.builder(
+              child: widget.prodotti.isEmpty
+                  ? const Center(
+                child: Text(
+                  'Il listino è vuoto.\nAggiungi il tuo primo prodotto!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+              )
+                  : ListView.builder(
                 itemCount: widget.prodotti.length,
                 itemBuilder: (context, index) {
                   final p = widget.prodotti[index];
@@ -234,7 +263,6 @@ class _ListinoScreenState extends State<ListinoScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      // MOSTRA LA FOTO SE ESISTE, ALTRIMENTI MOSTRA L'ICONA
                       leading: CircleAvatar(
                         radius: 26,
                         backgroundColor: isCibo ? Colors.orange.shade100 : Colors.blue.shade100,
@@ -246,12 +274,18 @@ class _ListinoScreenState extends State<ListinoScreen> {
                             : null,
                       ),
                       title: Text(p.nome, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                      subtitle: Text(p.tipologia.toUpperCase(), style: TextStyle(color: Colors.grey.shade600)),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('${p.prezzo.toStringAsFixed(2)} €', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo)),
-                          const SizedBox(width: 16),
+                          const SizedBox(height: 4),
+                          Text(p.tipologia.toUpperCase(), style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                          const SizedBox(height: 4),
+                          Text('${p.prezzo.toStringAsFixed(2)} €', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.indigo)),
+                        ],
+                      ),
+                      trailing: Wrap(
+                        spacing: 0,
+                        children: [
                           IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () => _mostraDialogProdotto(prodottoEsistente: p, index: index)),
                           IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => _eliminaProdotto(index)),
                         ],

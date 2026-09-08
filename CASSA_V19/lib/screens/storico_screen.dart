@@ -63,6 +63,45 @@ class _StoricoScreenState extends State<StoricoScreen> {
     );
   }
 
+  void _confermaEliminazione(EventoArchiviato evento) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+            SizedBox(width: 10),
+            // RISOLTO L'OVERFLOW: Usiamo Expanded per far adattare il testo in automatico!
+            Expanded(
+              child: Text('Elimina Evento', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+            ),
+          ],
+        ),
+        content: Text(
+          'Sei sicuro di voler eliminare definitivamente l\'evento "${evento.nomeEvento.toUpperCase()}"?\n\nTutti i dati di incasso e scontrini andranno persi. Questa azione non può essere annullata.',
+          style: const TextStyle(fontSize: 15, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annulla', style: TextStyle(color: Colors.grey, fontSize: 16, fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white),
+            onPressed: () {
+              widget.onEliminaEvento(evento.id);
+              setState(() {
+                _idEventoSelezionato = null;
+              });
+              Navigator.pop(context);
+            },
+            child: const Text('Elimina Definitivamente', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     EventoArchiviato? eventoSelezionato;
@@ -74,6 +113,8 @@ class _StoricoScreenState extends State<StoricoScreen> {
       }
     }
 
+    bool isMobile = MediaQuery.of(context).size.width < 600;
+
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
@@ -82,7 +123,7 @@ class _StoricoScreenState extends State<StoricoScreen> {
         surfaceTintColor: Colors.transparent,
       ),
       body: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.fromLTRB(20.0, 20.0, 20.0, 24.0),
         child: Column(
           children: [
             Expanded(
@@ -109,28 +150,30 @@ class _StoricoScreenState extends State<StoricoScreen> {
                         });
                       },
                       title: Text(evento.nomeEvento.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.indigo)),
-                      subtitle: Text('Chiuso il: ${evento.dataChiusura}\nScontrini: ${evento.numeroScontriniEmessi} | Incasso: ${evento.incassoTotale.toStringAsFixed(2)} €'),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 4.0),
+                        child: Text('Chiuso il: ${evento.dataChiusura}\nScontrini: ${evento.numeroScontriniEmessi} | Incasso: ${evento.incassoTotale.toStringAsFixed(2)} €'),
+                      ),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                      isThreeLine: true,
                     ),
                   );
                 },
               ),
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
+
+            if (isMobile)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade600, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 15)),
                     onPressed: widget.onAggiorna,
                     icon: const Icon(Icons.refresh),
                     label: const Text('Aggiorna', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
+                  const SizedBox(height: 8),
+                  ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: eventoSelezionato != null ? Colors.teal.shade600 : Colors.grey.shade400,
                       foregroundColor: Colors.white,
@@ -140,27 +183,58 @@ class _StoricoScreenState extends State<StoricoScreen> {
                     icon: const Icon(Icons.receipt_long),
                     label: const Text('Visualizza Scontrino', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
+                  const SizedBox(height: 8),
+                  ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: eventoSelezionato != null ? Colors.red.shade700 : Colors.grey.shade400,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 15),
                     ),
-                    onPressed: eventoSelezionato != null ? () {
-                      widget.onEliminaEvento(eventoSelezionato!.id);
-                      setState(() {
-                        _idEventoSelezionato = null;
-                      });
-                    } : null,
+                    onPressed: eventoSelezionato != null ? () => _confermaEliminazione(eventoSelezionato!) : null,
                     icon: const Icon(Icons.delete),
                     label: const Text('Elimina Evento', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
-                ),
-              ],
-            ),
+                ],
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade600, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 15)),
+                      onPressed: widget.onAggiorna,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Aggiorna', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: eventoSelezionato != null ? Colors.teal.shade600 : Colors.grey.shade400,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                      ),
+                      onPressed: eventoSelezionato != null ? () => _mostraDettagliEvento(eventoSelezionato!) : null,
+                      icon: const Icon(Icons.receipt_long),
+                      label: const Text('Visualizza Scontrino', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: eventoSelezionato != null ? Colors.red.shade700 : Colors.grey.shade400,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                      ),
+                      onPressed: eventoSelezionato != null ? () => _confermaEliminazione(eventoSelezionato!) : null,
+                      icon: const Icon(Icons.delete),
+                      label: const Text('Elimina Evento', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
           ],
         ),
       ),

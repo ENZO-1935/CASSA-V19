@@ -1,21 +1,27 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import '../models/prodotto.dart';
+import 'package:flutter/services.dart';
+import 'package:image/image.dart' as img;
 
 // Nuove librerie per la stampante termica
 import 'package:flutter_pos_printer_platform_image_3/flutter_pos_printer_platform_image_3.dart';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 
+import '../printer_globals.dart'; // <-- Memoria globale della stampante
+
 class CassaScreen extends StatefulWidget {
   final List<Prodotto> prodotti;
   final String nomeEvento;
   final Function(Map<Prodotto, int>, double) onStampaScontrino;
+  final int numeroScontriniEmmessi;
 
   const CassaScreen({
     super.key,
     required this.prodotti,
     required this.nomeEvento,
     required this.onStampaScontrino,
+    required this.numeroScontriniEmmessi,
   });
 
   @override
@@ -24,24 +30,25 @@ class CassaScreen extends StatefulWidget {
 
 class _CassaScreenState extends State<CassaScreen> {
   final Map<Prodotto, int> _carrello = {};
-  int _contatoreOrdineLocale = 1;
 
   int _tabSelezionato = 0;
   String _valoreTastierino = '0';
-
   String? _idProdottoCustomSelezionato;
 
-  // Variabili per la gestione della stampante USB
-  var printerManager = PrinterManager.instance;
-  PrinterDevice? _stampanteSelezionata;
+  int _quantitaSelezionata = 1;
 
-  void _aggiungiAlCarrello(Prodotto p) {
+  var printerManager = PrinterManager.instance;
+
+  int get _ordineCorrente => widget.numeroScontriniEmmessi + 1;
+
+  void _aggiungiAlCarrello(Prodotto p, {int quantitaAggiuntiva = 1}) {
     setState(() {
       if (_carrello.containsKey(p)) {
-        _carrello[p] = _carrello[p]! + 1;
+        _carrello[p] = _carrello[p]! + quantitaAggiuntiva;
       } else {
-        _carrello[p] = 1;
+        _carrello[p] = quantitaAggiuntiva;
       }
+      _quantitaSelezionata = 1;
     });
   }
 
@@ -62,6 +69,7 @@ class _CassaScreenState extends State<CassaScreen> {
       _carrello.clear();
       _valoreTastierino = '0';
       _idProdottoCustomSelezionato = null;
+      _quantitaSelezionata = 1;
     });
   }
 
@@ -94,9 +102,8 @@ class _CassaScreenState extends State<CassaScreen> {
   }
 
   void _aggiungiImportoLibero() {
-    double prezzo = double.tryParse(_valoreTastierino) ?? 0.0;
-    if (prezzo > 0) {
-
+    double prezzoTotaleInserito = double.tryParse(_valoreTastierino) ?? 0.0;
+    if (prezzoTotaleInserito > 0) {
       Prodotto? prodottoBase;
       if (_idProdottoCustomSelezionato != null) {
         try {
@@ -104,15 +111,17 @@ class _CassaScreenState extends State<CassaScreen> {
         } catch (_) {}
       }
 
+      double prezzoUnitario = prezzoTotaleInserito / _quantitaSelezionata;
+
       Prodotto pCustom = Prodotto(
         id: 'custom_${DateTime.now().millisecondsSinceEpoch}',
         nome: prodottoBase?.nome ?? 'Importo Libero',
-        prezzo: prezzo,
+        prezzo: prezzoUnitario,
         tipologia: prodottoBase?.tipologia ?? 'varie',
         immagineBase64: prodottoBase?.immagineBase64,
       );
 
-      _aggiungiAlCarrello(pCustom);
+      _aggiungiAlCarrello(pCustom, quantitaAggiuntiva: _quantitaSelezionata);
 
       setState(() {
         _valoreTastierino = '0';
@@ -121,7 +130,6 @@ class _CassaScreenState extends State<CassaScreen> {
     }
   }
 
-  // REINSERITA: Generazione grafica dei ticket per simulazione
   List<Widget> _generaTicketSingoli(Map<Prodotto, int> carrelloVenduto, String dataOra) {
     List<Widget> listaTicket = [];
     int totaleTicket = 0;
@@ -136,9 +144,10 @@ class _CassaScreenState extends State<CassaScreen> {
               decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.black87, width: 2)),
               child: Column(
                 children: [
-                  Image.asset('assets/images/logo.png', height: 40), const SizedBox(height: 6),
+                  const Text('CASSA_V19', style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.grey, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
                   Text(widget.nomeEvento.toUpperCase(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'monospace'), textAlign: TextAlign.center),
-                  Text('Ordine #${_contatoreOrdineLocale.toString().padLeft(3, '0')}', style: const TextStyle(fontSize: 14, fontFamily: 'monospace')),
+                  Text('Ordine #${_ordineCorrente.toString().padLeft(4, '0')}', style: const TextStyle(fontSize: 14, fontFamily: 'monospace')),
                   const Divider(color: Colors.black87, thickness: 1.5), const SizedBox(height: 10),
                   Text('1x ${prodotto.nome.toUpperCase()}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, fontFamily: 'monospace', height: 1.1)),
                   const SizedBox(height: 10), const Divider(color: Colors.black87, thickness: 1.5),
@@ -157,7 +166,6 @@ class _CassaScreenState extends State<CassaScreen> {
     return listaTicket;
   }
 
-  // REINSERITA: Mostra l'anteprima a schermo
   void _mostraAnteprimaScontrino(Map<Prodotto, int> carrelloVenduto, double totale) {
     String dataOraStr = DateTime.now().toString().substring(0, 16);
     showDialog(
@@ -178,8 +186,7 @@ class _CassaScreenState extends State<CassaScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white),
             onPressed: () {
               Navigator.pop(context);
-              widget.onStampaScontrino(carrelloVenduto, totale); // Registra le statistiche
-              setState(() => _contatoreOrdineLocale++);
+              widget.onStampaScontrino(carrelloVenduto, totale);
               _svuotaCarrello();
             },
             child: const Text('Completa Ordine Simulato'),
@@ -189,16 +196,15 @@ class _CassaScreenState extends State<CassaScreen> {
     );
   }
 
-  // DIALOGO DI RICERCA STAMPANTE USB AGGIORNATO CON TASTO SIMULA
-  void _mostraDialogoStampanteUSB() {
+  void _mostraDialogoStampante() {
     bool staCercando = true;
     List<PrinterDevice> dispositiviTrovati = [];
 
     void scansiona(StateSetter updateModal) {
       updateModal(() { staCercando = true; dispositiviTrovati.clear(); });
 
-      printerManager.discovery(type: PrinterType.usb, isBle: false).listen((device) {
-        if (!dispositiviTrovati.any((d) => d.vendorId == device.vendorId && d.productId == device.productId)) {
+      printerManager.discovery(type: connessioneGlobale, isBle: false).listen((device) {
+        if (!dispositiviTrovati.any((d) => d.name == device.name && d.address == device.address)) {
           updateModal(() => dispositiviTrovati.add(device));
         }
       }).onDone(() {
@@ -214,36 +220,68 @@ class _CassaScreenState extends State<CassaScreen> {
             if (staCercando && dispositiviTrovati.isEmpty) { scansiona(setStateModal); }
 
             return AlertDialog(
-              title: const Text('🖨️ Configurazione Stampante USB', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              title: const Text('🖨️ Connetti Stampante', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
               content: SizedBox(
-                width: 320, height: 300,
-                child: staCercando && dispositiviTrovati.isEmpty
-                    ? const Center(child: CircularProgressIndicator())
-                    : dispositiviTrovati.isEmpty
-                    ? const Center(child: Text('Nessuna stampante trovata.\n\nAssicurati di aver collegato il cavo OTG al tablet, che la stampante sia accesa e di autorizzare il dispositivo.', textAlign: TextAlign.center))
-                    : ListView.builder(
-                  itemCount: dispositiviTrovati.length,
-                  itemBuilder: (context, index) {
-                    final d = dispositiviTrovati[index];
-                    final isSelezionata = _stampanteSelezionata?.vendorId == d.vendorId && _stampanteSelezionata?.productId == d.productId;
-                    return ListTile(
-                      leading: Icon(Icons.print, color: isSelezionata ? Colors.indigo : Colors.grey),
-                      title: Text(d.name ?? 'Epson TM Series (USB)', style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text('ID Prodotto: ${d.productId}'),
-                      tileColor: isSelezionata ? Colors.indigo.shade50 : null,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      onTap: () {
-                        setState(() => _stampanteSelezionata = d);
-                        Navigator.pop(context);
-                        if (_carrello.isNotEmpty) _gestisciStampaScontrino();
-                      },
-                    );
-                  },
+                width: 350, height: 350,
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<PrinterType>(
+                          value: connessioneGlobale,
+                          isExpanded: true,
+                          icon: const Icon(Icons.settings_input_component, color: Colors.indigo),
+                          items: const [
+                            DropdownMenuItem(value: PrinterType.usb, child: Text('Ricerca tramite cavo USB')),
+                            DropdownMenuItem(value: PrinterType.bluetooth, child: Text('Ricerca tramite Bluetooth')),
+                            DropdownMenuItem(value: PrinterType.network, child: Text('Ricerca tramite Rete (LAN/Wi-Fi)')),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() => connessioneGlobale = val);
+                              setStateModal(() => connessioneGlobale = val);
+                              scansiona(setStateModal);
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: staCercando && dispositiviTrovati.isEmpty
+                          ? const Center(child: CircularProgressIndicator())
+                          : dispositiviTrovati.isEmpty
+                          ? Center(child: Text('Nessun dispositivo trovato in modalità ${connessioneGlobale.name}.', textAlign: TextAlign.center))
+                          : ListView.builder(
+                        itemCount: dispositiviTrovati.length,
+                        itemBuilder: (context, index) {
+                          final d = dispositiviTrovati[index];
+                          final isSelezionata = stampanteGlobale?.name == d.name;
+                          return ListTile(
+                            leading: Icon(
+                                connessioneGlobale == PrinterType.usb ? Icons.usb : connessioneGlobale == PrinterType.bluetooth ? Icons.bluetooth : Icons.wifi,
+                                color: isSelezionata ? Colors.indigo : Colors.grey
+                            ),
+                            title: Text(d.name ?? 'Dispositivo Sconosciuto', style: const TextStyle(fontWeight: FontWeight.bold)),
+                            subtitle: Text(d.address ?? 'ID: ${d.productId ?? "-"}'),
+                            tileColor: isSelezionata ? Colors.indigo.shade50 : null,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            onTap: () {
+                              setState(() => stampanteGlobale = d);
+                              Navigator.pop(context);
+                              if (_carrello.isNotEmpty) _gestisciStampaScontrino();
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
               actions: [
                 TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annulla')),
-                // TASTO DI EMERGENZA / TEST: SIMULA A SCHERMO
                 if (_carrello.isNotEmpty)
                   TextButton(
                     onPressed: () {
@@ -265,10 +303,9 @@ class _CassaScreenState extends State<CassaScreen> {
     );
   }
 
-  // GENERAZIONE DEI BYTE ESC/POS PER LA STAMPANTE (Hardware Reale)
   Future<List<int>> _generaByteScontrino(Map<Prodotto, int> carrelloVenduto) async {
     final profile = await CapabilityProfile.load();
-    final generator = Generator(PaperSize.mm80, profile); // Configurazione rotolo Epson 80mm
+    final generator = Generator(PaperSize.mm80, profile);
     List<int> bytes = [];
 
     int totaleTicket = 0;
@@ -277,33 +314,28 @@ class _CassaScreenState extends State<CassaScreen> {
 
     carrelloVenduto.forEach((prodotto, quantita) {
       for (int i = 0; i < quantita; i++) {
-        // Intestazione
-        bytes += generator.text(widget.nomeEvento.toUpperCase(), styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
-        bytes += generator.feed(1);
-        bytes += generator.text('Ordine #${_contatoreOrdineLocale.toString().padLeft(3, '0')}', styles: const PosStyles(align: PosAlign.center, bold: true));
-        bytes += generator.hr();
-        bytes += generator.feed(1);
+        bytes.addAll(generator.text('CASSA_V19', styles: const PosStyles(align: PosAlign.center, bold: false, fontType: PosFontType.fontB)));
+        bytes.addAll(generator.feed(1));
 
-        // Prodotto
-        bytes += generator.text('1x ${prodotto.nome.toUpperCase()}', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
-        bytes += generator.feed(1);
-
-        // Piè di pagina
-        bytes += generator.hr();
-        bytes += generator.text('${prodotto.prezzo.toStringAsFixed(2)} EUR   -   Ticket $ticketCorrente di $totaleTicket', styles: const PosStyles(align: PosAlign.center));
-        bytes += generator.text(DateTime.now().toString().substring(0, 16), styles: const PosStyles(align: PosAlign.center));
-
-        bytes += generator.feed(2); // Spazio extra prima del taglio
-        bytes += generator.cut(); // Comando taglio carta Epson
+        bytes.addAll(generator.text(widget.nomeEvento.toUpperCase(), styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2)));
+        bytes.addAll(generator.feed(1));
+        bytes.addAll(generator.text('Ordine #${_ordineCorrente.toString().padLeft(4, '0')}', styles: const PosStyles(align: PosAlign.center, bold: true)));
+        bytes.addAll(generator.hr());
+        bytes.addAll(generator.feed(1));
+        bytes.addAll(generator.text('1x ${prodotto.nome.toUpperCase()}', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2)));
+        bytes.addAll(generator.feed(1));
+        bytes.addAll(generator.hr());
+        bytes.addAll(generator.text('${prodotto.prezzo.toStringAsFixed(2)} EUR   -   Ticket $ticketCorrente di $totaleTicket', styles: const PosStyles(align: PosAlign.center)));
+        bytes.addAll(generator.text(DateTime.now().toString().substring(0, 16), styles: const PosStyles(align: PosAlign.center)));
+        bytes.addAll(generator.feed(2));
+        bytes.addAll(generator.cut());
 
         ticketCorrente++;
       }
     });
-
     return bytes;
   }
 
-  // FLUSSO DI COMUNICAZIONE HARDWARE
   void _gestisciStampaScontrino() async {
     if (widget.nomeEvento.isEmpty) {
       showDialog(
@@ -328,30 +360,27 @@ class _CassaScreenState extends State<CassaScreen> {
       return;
     }
 
-    // Se la stampante fisica non è selezionata, apri il menu di ricerca (dove ci sarà il tasto Simula a Schermo)
-    if (_stampanteSelezionata == null) {
-      _mostraDialogoStampanteUSB();
+    if (stampanteGlobale == null) {
+      _mostraDialogoStampante();
       return;
     }
 
-    // Altrimenti, invia direttamente l'ordine alla stampante fisica
     try {
-      printerManager.connect(
-          type: PrinterType.usb,
-          model: UsbPrinterInput(
-              name: _stampanteSelezionata!.name,
-              productId: _stampanteSelezionata!.productId,
-              vendorId: _stampanteSelezionata!.vendorId
-          )
-      );
+      dynamic printerInput;
+      if (connessioneGlobale == PrinterType.usb) {
+        printerInput = UsbPrinterInput(name: stampanteGlobale!.name, productId: stampanteGlobale!.productId, vendorId: stampanteGlobale!.vendorId);
+      } else if (connessioneGlobale == PrinterType.bluetooth) {
+        printerInput = BluetoothPrinterInput(name: stampanteGlobale!.name, address: stampanteGlobale!.address!, isBle: false);
+      } else if (connessioneGlobale == PrinterType.network) {
+        printerInput = TcpPrinterInput(ipAddress: stampanteGlobale!.address!);
+      }
 
+      printerManager.connect(type: connessioneGlobale, model: printerInput);
       final bytes = await _generaByteScontrino(Map.from(_carrello));
-      printerManager.send(type: PrinterType.usb, bytes: bytes);
+      printerManager.send(type: connessioneGlobale, bytes: bytes);
 
       double totale = _totaleIncasso;
       widget.onStampaScontrino(Map.from(_carrello), totale);
-
-      setState(() => _contatoreOrdineLocale++);
       _svuotaCarrello();
 
     } catch (e) {
@@ -416,61 +445,96 @@ class _CassaScreenState extends State<CassaScreen> {
         backgroundColor: Colors.grey.shade100,
         surfaceTintColor: Colors.transparent,
         actions: [
-          // Icona in alto a destra per connettere la stampante USB
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: IconButton(
               icon: Icon(
-                _stampanteSelezionata == null ? Icons.print_disabled : Icons.print,
-                color: _stampanteSelezionata == null ? Colors.red : Colors.green,
+                stampanteGlobale == null ? Icons.print_disabled : Icons.print,
+                color: stampanteGlobale == null ? Colors.red : Colors.green,
                 size: 28,
               ),
-              tooltip: 'Configura Stampante USB',
-              onPressed: _mostraDialogoStampanteUSB,
+              tooltip: 'Configura Stampante',
+              onPressed: _mostraDialogoStampante,
             ),
           )
         ],
       ),
-      body: Row(
-        children: [
-          Expanded(
-            flex: 3,
-            child: Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Column(
-                children: [
-                  SizedBox(
-                    height: 40,
-                    child: Row(
-                      children: [
-                        _buildTopTab(0, Icons.grid_view),
-                        _buildTopTab(1, Icons.local_drink),
-                        _buildTopTab(2, Icons.restaurant_menu),
-                        _buildTopTab(3, Icons.dialpad),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 10),
+      // LAYOUT BUILDER: Rende l'app perfetta su schermi grandi e piccoli!
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          // Se la larghezza è inferiore a 800px, passiamo alla modalità smartphone (colonna verticale)
+          bool isMobile = constraints.maxWidth < 800;
 
-                  Expanded(
-                    child: _tabSelezionato == 3
-                        ? // TASTIERINO CON SCHERMO COMPATTO 2-IN-1
-                    Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 360),
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(18),
-                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 10, offset: const Offset(0, 4))],
-                            border: Border.all(color: Colors.grey.shade300),
-                          ),
+          // --- PANNELLO SINISTRO: PRODOTTI E TASTIERINO ---
+          Widget pannelloProdotti = Padding(
+            padding: EdgeInsets.fromLTRB(12.0, 12.0, 12.0, isMobile ? 6.0 : 12.0),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 4,
+                      child: SizedBox(
+                        height: 40,
+                        child: Row(
+                          children: [
+                            _buildTopTab(0, Icons.grid_view),
+                            _buildTopTab(1, Icons.local_drink),
+                            _buildTopTab(2, Icons.restaurant_menu),
+                            _buildTopTab(3, Icons.dialpad),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      height: 40,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      decoration: BoxDecoration(
+                        color: _quantitaSelezionata > 1 ? Colors.orange.shade100 : Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: _quantitaSelezionata > 1 ? Colors.orange.shade800 : Colors.grey.shade300, width: 2),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<int>(
+                          value: _quantitaSelezionata,
+                          icon: Icon(Icons.arrow_drop_down, color: _quantitaSelezionata > 1 ? Colors.orange.shade800 : Colors.indigo),
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _quantitaSelezionata > 1 ? Colors.orange.shade900 : Colors.indigo.shade900),
+                          items: List.generate(10, (index) => index + 1).map((q) {
+                            return DropdownMenuItem<int>(
+                              value: q,
+                              child: Text('Qt: $q', style: const TextStyle(fontWeight: FontWeight.bold)),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) setState(() => _quantitaSelezionata = val);
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                Expanded(
+                  child: _tabSelezionato == 3
+                      ? Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 360),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 10, offset: const Offset(0, 4))],
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        // MODIFICA ANTI-OVERFLOW: Il tastierino ora può scorrere se lo schermo è minuscolo
+                        child: SingleChildScrollView(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              // SCHERMO 2-IN-1: TENDINA PRODOTTO + IMPORTO UNITI
                               Container(
                                 padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
                                 decoration: BoxDecoration(
@@ -499,9 +563,7 @@ class _CassaScreenState extends State<CassaScreen> {
                                           )).toList(),
                                         ],
                                         onChanged: (val) {
-                                          setState(() {
-                                            _idProdottoCustomSelezionato = val;
-                                          });
+                                          setState(() => _idProdottoCustomSelezionato = val);
                                         },
                                       ),
                                     ),
@@ -518,28 +580,24 @@ class _CassaScreenState extends State<CassaScreen> {
                               ),
                               const SizedBox(height: 8),
 
-                              // GRIGLIA TASTI
-                              SizedBox(
-                                height: 250,
-                                child: GridView.count(
-                                  crossAxisCount: 3,
-                                  childAspectRatio: 1.9,
-                                  mainAxisSpacing: 5,
-                                  crossAxisSpacing: 5,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  children: [
-                                    _buildTastoTastierino('7'), _buildTastoTastierino('8'), _buildTastoTastierino('9'),
-                                    _buildTastoTastierino('4'), _buildTastoTastierino('5'), _buildTastoTastierino('6'),
-                                    _buildTastoTastierino('1'), _buildTastoTastierino('2'), _buildTastoTastierino('3'),
-                                    _buildTastoTastierino('C', coloreSfondo: Colors.red.shade50, coloreTesto: Colors.red.shade700),
-                                    _buildTastoTastierino('0'),
-                                    _buildTastoTastierino('.'),
-                                  ],
-                                ),
+                              // Griglia dei numeri
+                              GridView.count(
+                                shrinkWrap: true, // Fondamentale dentro il SingleChildScrollView
+                                physics: const NeverScrollableScrollPhysics(),
+                                crossAxisCount: 3,
+                                childAspectRatio: isMobile ? 2.2 : 1.9, // Sui telefoni i tasti sono leggermente più schiacciati
+                                mainAxisSpacing: 5,
+                                crossAxisSpacing: 5,
+                                children: [
+                                  _buildTastoTastierino('7'), _buildTastoTastierino('8'), _buildTastoTastierino('9'),
+                                  _buildTastoTastierino('4'), _buildTastoTastierino('5'), _buildTastoTastierino('6'),
+                                  _buildTastoTastierino('1'), _buildTastoTastierino('2'), _buildTastoTastierino('3'),
+                                  _buildTastoTastierino('C', coloreSfondo: Colors.red.shade50, coloreTesto: Colors.red.shade700),
+                                  _buildTastoTastierino('0'),
+                                  _buildTastoTastierino('.'),
+                                ],
                               ),
                               const SizedBox(height: 8),
-
-                              // PULSANTE AGGIUNGI AL CARRELLO
                               SizedBox(
                                 height: 40,
                                 child: ElevatedButton.icon(
@@ -551,130 +609,197 @@ class _CassaScreenState extends State<CassaScreen> {
                                   ),
                                   onPressed: _aggiungiImportoLibero,
                                   icon: const Icon(Icons.add_shopping_cart, size: 16),
-                                  label: const Text('AGGIUNGI AL CARRELLO', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                  label: Text('AGGIUNGI ($_quantitaSelezionata PZ)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                 ),
                               )
                             ],
                           ),
                         ),
                       ),
-                    )
-                        : // GRIGLIA PRODOTTI NORMALE
-                    GridView.builder(
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          childAspectRatio: 1.3,
-                          crossAxisSpacing: 10,
-                          mainAxisSpacing: 10
-                      ),
-                      itemCount: prodottiMostrati.length,
-                      itemBuilder: (context, index) {
-                        final p = prodottiMostrati[index];
-                        final isCibo = p.tipologia == 'cibo';
+                    ),
+                  )
+                      : GridView.builder(
+                    // Sui telefoni mostra 2 colonne per far entrare bene i nomi, sui tablet 3 colonne
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: isMobile ? 2 : 3,
+                        childAspectRatio: 1.3,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10
+                    ),
+                    itemCount: prodottiMostrati.length,
+                    itemBuilder: (context, index) {
+                      final p = prodottiMostrati[index];
+                      final isCibo = p.tipologia == 'cibo';
 
-                        return ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: isCibo ? Colors.orange.shade800 : Colors.blue.shade800,
-                            elevation: 2,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              side: BorderSide(color: isCibo ? Colors.orange.shade200 : Colors.blue.shade200, width: 2),
+                      return ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: isCibo ? Colors.orange.shade800 : Colors.blue.shade800,
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            side: BorderSide(color: isCibo ? Colors.orange.shade200 : Colors.blue.shade200, width: 2),
+                          ),
+                          padding: const EdgeInsets.all(6),
+                        ),
+                        onPressed: () => _aggiungiAlCarrello(p, quantitaAggiuntiva: _quantitaSelezionata),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircleAvatar(
+                              radius: 24,
+                              backgroundColor: isCibo ? Colors.orange.shade100 : Colors.blue.shade100,
+                              backgroundImage: p.immagineBase64 != null
+                                  ? MemoryImage(base64Decode(p.immagineBase64!))
+                                  : null,
+                              child: p.immagineBase64 == null
+                                  ? Icon(p.icona, color: isCibo ? Colors.orange.shade800 : Colors.blue.shade800, size: 28)
+                                  : null,
                             ),
-                            padding: const EdgeInsets.all(6),
-                          ),
-                          onPressed: () => _aggiungiAlCarrello(p),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              CircleAvatar(
-                                radius: 24,
-                                backgroundColor: isCibo ? Colors.orange.shade100 : Colors.blue.shade100,
-                                backgroundImage: p.immagineBase64 != null
-                                    ? MemoryImage(base64Decode(p.immagineBase64!))
-                                    : null,
-                                child: p.immagineBase64 == null
-                                    ? Icon(p.icona, color: isCibo ? Colors.orange.shade800 : Colors.blue.shade800, size: 28)
-                                    : null,
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                  p.nome,
-                                  textAlign: TextAlign.center,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                  '${p.prezzo.toStringAsFixed(2)} €',
-                                  style: TextStyle(fontSize: 14, color: isCibo ? Colors.orange.shade700 : Colors.blue.shade700, fontWeight: FontWeight.bold)
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
+                            const SizedBox(height: 6),
+                            Text(
+                                p.nome,
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                                '${p.prezzo.toStringAsFixed(2)} €',
+                                style: TextStyle(fontSize: 14, color: isCibo ? Colors.orange.shade700 : Colors.blue.shade700, fontWeight: FontWeight.bold)
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ),
+          );
 
-          Expanded(
-            flex: 2,
-            child: Container(
+          // --- PANNELLO DESTRO: CARRELLO ---
+          Widget pannelloCarrello = Container(
+            margin: EdgeInsets.only(
+                left: isMobile ? 12 : 0,
+                right: 12,
+                top: isMobile ? 0 : 12,
+                bottom: 12
+            ),
+            decoration: BoxDecoration(
               color: Colors.white,
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: _carrello.length,
-                      itemBuilder: (context, index) {
-                        final prodotto = _carrello.keys.elementAt(index);
-                        final quantita = _carrello[prodotto]!;
-                        final prezzoTotale = prodotto.prezzo * quantita;
-
-                        return Card(
-                          color: Colors.grey.shade50,
-                          elevation: 1,
-                          margin: const EdgeInsets.only(bottom: 8),
-                          child: ListTile(
-                            title: Text('${quantita}x ${prodotto.nome} - ${prezzoTotale.toStringAsFixed(2)} €', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                            trailing: IconButton(icon: const Icon(Icons.remove_circle, color: Colors.deepOrange), onPressed: () => _rimuoviDalCarrello(prodotto)),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const Divider(thickness: 2),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16.0),
-                    child: Text('Totale: ${_totaleIncasso.toStringAsFixed(2)} €', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.indigo)),
-                  ),
-                  SizedBox(
-                    width: double.infinity, height: 55,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800),
-                      onPressed: _svuotaCarrello,
-                      child: const Text('Svuota Tutto', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity, height: 55,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700),
-                      onPressed: _gestisciStampaScontrino,
-                      child: const Text('Stampa Scontrino', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                ],
-              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 10,
+                  offset: const Offset(-2, 3),
+                ),
+              ],
             ),
-          ),
-        ],
+            padding: EdgeInsets.all(isMobile ? 12.0 : 16.0), // Padding ridotto sui telefoni
+            child: Column(
+              children: [
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: _carrello.length,
+                    itemBuilder: (context, index) {
+                      final prodotto = _carrello.keys.elementAt(index);
+                      final quantita = _carrello[prodotto]!;
+                      final prezzoTotale = prodotto.prezzo * quantita;
+
+                      return Card(
+                        color: Colors.grey.shade50,
+                        elevation: 1,
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          dense: isMobile, // Liste più compatte sui telefoni
+                          title: Text('${quantita}x ${prodotto.nome} - ${prezzoTotale.toStringAsFixed(2)} €', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          trailing: IconButton(icon: const Icon(Icons.remove_circle, color: Colors.deepOrange), onPressed: () => _rimuoviDalCarrello(prodotto)),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const Divider(thickness: 2),
+                Padding(
+                  padding: EdgeInsets.symmetric(vertical: isMobile ? 8.0 : 16.0),
+                  child: Text('Totale: ${_totaleIncasso.toStringAsFixed(2)} €', style: TextStyle(fontSize: isMobile ? 24 : 28, fontWeight: FontWeight.bold, color: Colors.indigo)),
+                ),
+
+                // MODIFICA ANTI-OVERFLOW: Pulsanti Affiancati su Smartphone, Impilati su Tablet
+                if (isMobile)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: 45,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800, padding: EdgeInsets.zero),
+                            onPressed: _svuotaCarrello,
+                            child: const Text('Svuota', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: SizedBox(
+                          height: 45,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, padding: EdgeInsets.zero),
+                            onPressed: _gestisciStampaScontrino,
+                            child: const Text('Stampa', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity, height: 55,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800),
+                          onPressed: _svuotaCarrello,
+                          child: const Text('Svuota Tutto', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity, height: 55,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700),
+                          onPressed: _gestisciStampaScontrino,
+                          child: const Text('Stampa Scontrino', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          );
+
+          // LOGICA FINALE:
+          if (isMobile) {
+            // Modalità Telefono: Prodotti sopra, Carrello sotto
+            return Column(
+              children: [
+                Expanded(flex: 3, child: pannelloProdotti),
+                Expanded(flex: 2, child: pannelloCarrello),
+              ],
+            );
+          } else {
+            // Modalità Tablet: Prodotti a sinistra, Carrello a destra
+            return Row(
+              children: [
+                Expanded(flex: 3, child: pannelloProdotti),
+                Expanded(flex: 2, child: pannelloCarrello),
+              ],
+            );
+          }
+        },
       ),
     );
   }
