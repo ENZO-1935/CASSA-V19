@@ -1,13 +1,15 @@
 class EventoArchiviato {
   final String id;
+  final String nomeEvento; // Nuovo campo aggiunto
   final String dataChiusura;
   final double incassoTotale;
   final int numeroScontriniEmessi;
-  final Map<String, int> prodottiVenduti; // Nome prodotto -> Quantità
-  final Map<String, double> prezziProdotti; // Nome prodotto -> Prezzo unitario
+  final Map<String, int> prodottiVenduti;
+  final Map<String, double> prezziProdotti;
 
   EventoArchiviato({
     required this.id,
+    required this.nomeEvento,
     required this.dataChiusura,
     required this.incassoTotale,
     required this.numeroScontriniEmessi,
@@ -17,6 +19,7 @@ class EventoArchiviato {
 
   Map<String, dynamic> toJson() => {
     'id': id,
+    'nomeEvento': nomeEvento,
     'dataChiusura': dataChiusura,
     'incassoTotale': incassoTotale,
     'numeroScontriniEmessi': numeroScontriniEmessi,
@@ -27,6 +30,7 @@ class EventoArchiviato {
   factory EventoArchiviato.fromJson(Map<String, dynamic> json) {
     return EventoArchiviato(
       id: json['id'] ?? '',
+      nomeEvento: json['nomeEvento'] ?? 'Evento Precedente', // Gestisce anche gli eventi vecchi
       dataChiusura: json['dataChiusura'] ?? '',
       incassoTotale: (json['incassoTotale'] as num).toDouble(),
       numeroScontriniEmessi: json['numeroScontriniEmessi'] ?? 0,

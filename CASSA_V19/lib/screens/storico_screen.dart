@@ -24,13 +24,15 @@ class _StoricoScreenState extends State<StoricoScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Scontrino Chiusura - ${evento.dataChiusura}'),
+        title: Text('Chiusura - ${evento.nomeEvento}'),
         content: SizedBox(
           width: 400,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Text('Data Chiusura: ${evento.dataChiusura}', style: const TextStyle(fontSize: 14, color: Colors.grey)),
+              const SizedBox(height: 8),
               Text('Incasso Totale: ${evento.incassoTotale.toStringAsFixed(2)} €', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               Text('Scontrini Emessi: ${evento.numeroScontriniEmessi}', style: const TextStyle(fontSize: 14)),
               const Divider(thickness: 2),
@@ -106,17 +108,16 @@ class _StoricoScreenState extends State<StoricoScreen> {
                           _idEventoSelezionato = evento.id;
                         });
                       },
-                      title: Text('Evento del: ${evento.dataChiusura}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                      subtitle: Text('Scontrini: ${evento.numeroScontriniEmessi} | Incasso: ${evento.incassoTotale.toStringAsFixed(2)} €'),
+                      title: Text(evento.nomeEvento.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.indigo)),
+                      subtitle: Text('Chiuso il: ${evento.dataChiusura}\nScontrini: ${evento.numeroScontriniEmessi} | Incasso: ${evento.incassoTotale.toStringAsFixed(2)} €'),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      isThreeLine: true,
                     ),
                   );
                 },
               ),
             ),
             const SizedBox(height: 16),
-
-            // Comandi Inferiori (si attivano quando selezioni un evento)
             Row(
               children: [
                 Expanded(

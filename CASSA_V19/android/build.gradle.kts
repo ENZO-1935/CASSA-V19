@@ -15,10 +15,22 @@ subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
+
 subprojects {
     project.evaluationDependsOn(":app")
 }
 
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
+}
+
+// FORZATURA VERSIONI PLUGIN (Risolve il problema della stampante)
+subprojects {
+    afterEvaluate {
+        if (plugins.hasPlugin("com.android.library")) {
+            configure<com.android.build.gradle.LibraryExtension> {
+                compileSdk = 36
+            }
+        }
+    }
 }
