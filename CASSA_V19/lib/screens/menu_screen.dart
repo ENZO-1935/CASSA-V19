@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../models/prodotto.dart';
 import '../models/evento_archiviato.dart';
+import '../models/ordine.dart'; // Importa la classe Transazione
 import 'cassa_screen.dart';
 import 'listino_screen.dart';
 import 'statistiche_screen.dart';
@@ -25,8 +26,12 @@ class _MenuScreenState extends State<MenuScreen> {
   String _nomeEvento = '';
 
   double _incassoTotale = 0.0;
+  double _incassoContanti = 0.0;
+  double _incassoCarta = 0.0;
   int _numeroScontrini = 0;
   Map<String, int> _prodottiVenduti = {};
+
+  List<Transazione> _transazioniAttive = []; // Storico orari per il filtro
 
   bool _isLoading = true;
 
@@ -53,7 +58,6 @@ class _MenuScreenState extends State<MenuScreen> {
     _nomeEvento = nomeSalvato ?? '';
 
     final String? prodottiString = prefs.getString('lista_prodotti_v3');
-
     if (prodottiString != null) {
       final List decoded = jsonDecode(prodottiString);
       _prodottiGlobali = decoded.map((item) => Prodotto.fromJson(item)).toList();
@@ -69,10 +73,19 @@ class _MenuScreenState extends State<MenuScreen> {
     }
 
     _incassoTotale = prefs.getDouble('incasso_corrente') ?? 0.0;
+    _incassoContanti = prefs.getDouble('incasso_contanti') ?? 0.0;
+    _incassoCarta = prefs.getDouble('incasso_carta') ?? 0.0;
     _numeroScontrini = prefs.getInt('scontrini_correnti') ?? 0;
+
     final String? vendutiString = prefs.getString('venduti_correnti');
     if (vendutiString != null) {
       _prodottiVenduti = Map<String, int>.from(jsonDecode(vendutiString));
+    }
+
+    final String? transString = prefs.getString('transazioni_correnti');
+    if (transString != null) {
+      final List decodedTrans = jsonDecode(transString);
+      _transazioniAttive = decodedTrans.map((t) => Transazione.fromJson(t)).toList();
     }
 
     setState(() {
@@ -84,8 +97,11 @@ class _MenuScreenState extends State<MenuScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('nome_evento', _nomeEvento);
     await prefs.setDouble('incasso_corrente', _incassoTotale);
+    await prefs.setDouble('incasso_contanti', _incassoContanti);
+    await prefs.setDouble('incasso_carta', _incassoCarta);
     await prefs.setInt('scontrini_correnti', _numeroScontrini);
     await prefs.setString('venduti_correnti', jsonEncode(_prodottiVenduti));
+    await prefs.setString('transazioni_correnti', jsonEncode(_transazioniAttive.map((t) => t.toJson()).toList()));
     await prefs.setString('lista_prodotti_v3', jsonEncode(_prodottiGlobali.map((p) => p.toJson()).toList()));
   }
 
@@ -94,52 +110,160 @@ class _MenuScreenState extends State<MenuScreen> {
     await prefs.setString('storico_eventi', jsonEncode(_eventiPassati.map((e) => e.toJson()).toList()));
   }
 
-  void _registraVendita(Map<Prodotto, int> carrello, double totale) {
+  void _registraVendita(Map<Prodotto, int> carrello, double totale, String metodoPagamento) {
     setState(() {
       _incassoTotale += totale;
+      if (metodoPagamento == 'CARTA') {
+        _incassoCarta += totale;
+      } else {
+        _incassoContanti += totale;
+      }
+
       _numeroScontrini += 1;
+
+      Map<String, int> prodottiScontrino = {};
       carrello.forEach((prodotto, quantita) {
-        if (_prodottiVenduti.containsKey(prodotto.nome)) {
-          _prodottiVenduti[prodotto.nome] = _prodottiVenduti[prodotto.nome]! + quantita;
+        String nomeProdotto = prodotto.nome.toUpperCase();
+        prodottiScontrino[nomeProdotto] = quantita;
+        if (_prodottiVenduti.containsKey(nomeProdotto)) {
+          _prodottiVenduti[nomeProdotto] = _prodottiVenduti[nomeProdotto]! + quantita;
         } else {
-          _prodottiVenduti[prodotto.nome] = quantita;
+          _prodottiVenduti[nomeProdotto] = quantita;
         }
       });
+
+      _transazioniAttive.add(
+          Transazione(
+            dataOra: DateTime.now(),
+            totale: totale,
+            metodoPagamento: metodoPagamento,
+            prodotti: prodottiScontrino,
+          )
+      );
     });
     _salvaDatiCorrenti();
   }
 
-  void _archiviaEazzera(bool azzeraListino) {
+  void _archiviaEvento(bool azzeraListino, bool azzeraIncassi) {
     if (_nomeEvento.isEmpty) return;
 
-    final nuovoEvento = EventoArchiviato(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      nomeEvento: _nomeEvento,
-      dataChiusura: DateTime.now().toString().substring(0, 16),
-      incassoTotale: _incassoTotale,
-      numeroScontriniEmessi: _numeroScontrini,
-      prodottiVenduti: Map.from(_prodottiVenduti),
-      prezziProdotti: {},
-    );
+    int indiceEsistente = _eventiPassati.indexWhere((e) => e.nomeEvento.toLowerCase() == _nomeEvento.toLowerCase());
+
+    if (indiceEsistente >= 0) {
+      // SISTEMA ANTI-DOPPIONI: Cerca solo gli scontrini NON ancora archiviati nello storico
+      List<Transazione> nuoveTransazioni = _transazioniAttive.where((tAttiva) {
+        return !_eventiPassati[indiceEsistente].transazioni.any((tStorico) =>
+            tStorico.dataOra.isAtSameMomentAs(tAttiva.dataOra)
+        );
+      }).toList();
+
+      double nuovoIncassoTotale = 0;
+      double nuovoIncassoContanti = 0;
+      double nuovoIncassoCarta = 0;
+      int nuovoNumeroScontrini = 0;
+      Map<String, int> nuoviProdottiVenduti = {};
+
+      // Calcola i totali SOLO dei nuovi scontrini aggiunti da dopo l'ultimo backup
+      for(var t in nuoveTransazioni) {
+        nuovoIncassoTotale += t.totale;
+        if (t.metodoPagamento == 'CARTA') nuovoIncassoCarta += t.totale;
+        else nuovoIncassoContanti += t.totale;
+        nuovoNumeroScontrini += 1;
+        t.prodotti.forEach((k, v) {
+          String nomeU = k.toUpperCase();
+          nuoviProdottiVenduti[nomeU] = (nuoviProdottiVenduti[nomeU] ?? 0) + v;
+        });
+      }
+
+      // Somma il delta al database storico
+      _eventiPassati[indiceEsistente].incassoTotale += nuovoIncassoTotale;
+      _eventiPassati[indiceEsistente].incassoContanti += nuovoIncassoContanti;
+      _eventiPassati[indiceEsistente].incassoCarta += nuovoIncassoCarta;
+      _eventiPassati[indiceEsistente].numeroScontriniEmessi += nuovoNumeroScontrini;
+      _eventiPassati[indiceEsistente].dataChiusura = DateTime.now().toString().substring(0, 16);
+
+      nuoviProdottiVenduti.forEach((key, val) {
+        _eventiPassati[indiceEsistente].prodottiVenduti[key] = (_eventiPassati[indiceEsistente].prodottiVenduti[key] ?? 0) + val;
+      });
+
+      for (var p in _prodottiGlobali) {
+        _eventiPassati[indiceEsistente].prezziProdotti[p.nome.toUpperCase()] = p.prezzo;
+      }
+
+      _eventiPassati[indiceEsistente].transazioni.addAll(nuoveTransazioni);
+
+    } else {
+      // Primo salvataggio in assoluto
+      Map<String, int> prodottiVendutiMaiuscolo = {};
+      _prodottiVenduti.forEach((k, v) => prodottiVendutiMaiuscolo[k.toUpperCase()] = v);
+
+      Map<String, double> listinoMaiuscolo = {};
+      for (var p in _prodottiGlobali) {
+        listinoMaiuscolo[p.nome.toUpperCase()] = p.prezzo;
+      }
+
+      final nuovoEvento = EventoArchiviato(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        nomeEvento: _nomeEvento,
+        dataChiusura: DateTime.now().toString().substring(0, 16),
+        incassoTotale: _incassoTotale,
+        incassoContanti: _incassoContanti,
+        incassoCarta: _incassoCarta,
+        numeroScontriniEmessi: _numeroScontrini,
+        prodottiVenduti: prodottiVendutiMaiuscolo,
+        prezziProdotti: listinoMaiuscolo,
+        transazioni: List.from(_transazioniAttive),
+      );
+      _eventiPassati.add(nuovoEvento);
+    }
 
     setState(() {
-      _eventiPassati.add(nuovoEvento);
-      _incassoTotale = 0.0;
-      _numeroScontrini = 0;
-      _prodottiVenduti.clear();
+      if (azzeraIncassi) {
+        _incassoTotale = 0.0;
+        _incassoContanti = 0.0;
+        _incassoCarta = 0.0;
+        _numeroScontrini = 0;
+        _prodottiVenduti.clear();
+        _transazioniAttive.clear();
+        _nomeEvento = '';
+      }
 
       if (azzeraListino) {
         _prodottiGlobali.clear();
       }
-
-      _nomeEvento = '';
     });
 
     _salvaStorico();
     _salvaDatiCorrenti();
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(azzeraListino ? 'Evento archiviato e listino azzerato.' : 'Evento archiviato. Listino mantenuto.')),
+      SnackBar(content: Text(azzeraIncassi ? 'Evento archiviato e chiuso con successo.' : 'Backup archiviato nello storico (dati correnti mantenuti).')),
+    );
+  }
+
+  // Genera un oggetto evento "virtuale" con i dati correnti
+  EventoArchiviato? get _eventoAttivoVirtuale {
+    if (_nomeEvento.isEmpty && _incassoTotale == 0) return null;
+
+    Map<String, int> prodottiVendutiMaiuscolo = {};
+    _prodottiVenduti.forEach((k, v) => prodottiVendutiMaiuscolo[k.toUpperCase()] = v);
+
+    Map<String, double> listinoMaiuscolo = {};
+    for (var p in _prodottiGlobali) {
+      listinoMaiuscolo[p.nome.toUpperCase()] = p.prezzo;
+    }
+
+    return EventoArchiviato(
+      id: 'ATTIVO_CORRENTE',
+      nomeEvento: _nomeEvento.isEmpty ? 'IN CORSO' : _nomeEvento,
+      dataChiusura: 'Evento in corso (Dati Live)',
+      incassoTotale: _incassoTotale,
+      incassoContanti: _incassoContanti,
+      incassoCarta: _incassoCarta,
+      numeroScontriniEmessi: _numeroScontrini,
+      prodottiVenduti: prodottiVendutiMaiuscolo,
+      prezziProdotti: listinoMaiuscolo,
+      transazioni: List.from(_transazioniAttive),
     );
   }
 
@@ -173,19 +297,25 @@ class _MenuScreenState extends State<MenuScreen> {
       StatisticheScreen(
         nomeEvento: _nomeEvento,
         incassoTotale: _incassoTotale,
+        incassoContanti: _incassoContanti,
+        incassoCarta: _incassoCarta,
         numeroScontrini: _numeroScontrini,
         prodottiVenduti: _prodottiVenduti,
+        listinoPrezzi: { for (var p in _prodottiGlobali) p.nome.toUpperCase(): p.prezzo },
         onAggiorna: () => setState(() {}),
         onStampaChiusura: () {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Scontrino di chiusura stampato con successo!')),
           );
         },
-        onArchiviaEazzera: (bool azzeraListino) => _archiviaEazzera(azzeraListino),
+        onArchiviaEazzera: (bool azzeraListino, bool azzeraIncassi) => _archiviaEvento(azzeraListino, azzeraIncassi),
       ),
       StoricoScreen(
         eventiPassati: _eventiPassati,
+        eventoAttivoCorrente: _eventoAttivoVirtuale,
+        listinoPrezziAttuale: { for (var p in _prodottiGlobali) p.nome.toUpperCase(): p.prezzo },
         onAggiorna: () => setState(() {}),
+        onSalvaStorico: _salvaStorico,
         onEliminaEvento: (id) {
           setState(() {
             _eventiPassati.removeWhere((e) => e.id == id);
@@ -291,30 +421,23 @@ class _HomeView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: SingleChildScrollView(
-        // Padding inferiore ridotto a 24 per far sparire la fastidiosa banda grigia sul telefono
         padding: const EdgeInsets.only(top: 24.0, left: 16.0, right: 16.0, bottom: 24.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-
-            // LOGO IN ALTA DEFINIZIONE
             Image.asset(
               'assets/images/logo.png',
-              height: 260, // Aumentato per godersi tutti i dettagli
-              fit: BoxFit.contain, // Mantiene le proporzioni perfette senza tagliare l'immagine
-              filterQuality: FilterQuality.high, // Forza Flutter a renderizzare l'immagine alla massima qualità
+              height: 260,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
             ),
-
             const SizedBox(height: 20),
-
             const Text(
               'CASSA-V19',
               style: TextStyle(fontSize: 38, fontWeight: FontWeight.bold, color: Colors.indigo, letterSpacing: 2),
               textAlign: TextAlign.center,
             ),
-
             const SizedBox(height: 10),
-
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               decoration: BoxDecoration(
@@ -331,9 +454,7 @@ class _HomeView extends StatelessWidget {
                 ),
               ),
             ),
-
             const SizedBox(height: 24),
-
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange.shade700,
@@ -373,9 +494,7 @@ class _HomeView extends StatelessWidget {
                 );
               },
             ),
-
             const SizedBox(height: 50),
-
             Wrap(
               alignment: WrapAlignment.center,
               spacing: 12,

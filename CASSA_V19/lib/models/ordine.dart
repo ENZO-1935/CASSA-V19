@@ -13,7 +13,6 @@ class Ordine {
   final List<VoceOrdine> voci = [];
 
   void aggiungiProdotto(Prodotto prodotto) {
-    // Controlla se il prodotto è già nel carrello
     final index = voci.indexWhere((v) => v.prodotto.id == prodotto.id);
     if (index >= 0) {
       voci[index].quantita++;
@@ -39,5 +38,36 @@ class Ordine {
 
   void svuota() {
     voci.clear();
+  }
+}
+
+// NUOVO: Fotografia esatta di una singola vendita per i filtri di orario
+class Transazione {
+  final DateTime dataOra;
+  final double totale;
+  final String metodoPagamento;
+  final Map<String, int> prodotti;
+
+  Transazione({
+    required this.dataOra,
+    required this.totale,
+    required this.metodoPagamento,
+    required this.prodotti,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'dataOra': dataOra.toIso8601String(),
+    'totale': totale,
+    'metodoPagamento': metodoPagamento,
+    'prodotti': prodotti,
+  };
+
+  factory Transazione.fromJson(Map<String, dynamic> json) {
+    return Transazione(
+      dataOra: DateTime.parse(json['dataOra']),
+      totale: (json['totale'] as num).toDouble(),
+      metodoPagamento: json['metodoPagamento'] ?? 'CONTANTI',
+      prodotti: Map<String, int>.from(json['prodotti'] ?? {}),
+    );
   }
 }

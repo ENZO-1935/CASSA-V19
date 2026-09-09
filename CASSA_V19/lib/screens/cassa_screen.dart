@@ -13,7 +13,7 @@ import '../printer_globals.dart'; // <-- Memoria globale della stampante
 class CassaScreen extends StatefulWidget {
   final List<Prodotto> prodotti;
   final String nomeEvento;
-  final Function(Map<Prodotto, int>, double) onStampaScontrino;
+  final Function(Map<Prodotto, int>, double, String) onStampaScontrino;
   final int numeroScontriniEmmessi;
 
   const CassaScreen({
@@ -140,25 +140,31 @@ class _CassaScreenState extends State<CassaScreen> {
       for (int i = 0; i < quantita; i++) {
         listaTicket.add(
             Container(
-              width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),
+              width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 8.0),
               decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.black87, width: 2)),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const Text('CASSA_V19', style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.grey, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text(widget.nomeEvento.toUpperCase(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'monospace'), textAlign: TextAlign.center),
-                  Text('Ordine #${_ordineCorrente.toString().padLeft(4, '0')}', style: const TextStyle(fontSize: 14, fontFamily: 'monospace')),
-                  const Divider(color: Colors.black87, thickness: 1.5), const SizedBox(height: 10),
-                  Text('1x ${prodotto.nome.toUpperCase()}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, fontFamily: 'monospace', height: 1.1)),
-                  const SizedBox(height: 10), const Divider(color: Colors.black87, thickness: 1.5),
-                  Text('${prodotto.prezzo.toStringAsFixed(2)} €   -   Ticket $ticketCorrente di $totaleTicket', style: const TextStyle(fontSize: 12, fontFamily: 'monospace')),
-                  Text(dataOra, style: const TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.grey)),
+                  const Text('CASSA_V19', style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.grey, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                  const SizedBox(height: 2),
+                  // Font largo e grande come prima
+                  Text(widget.nomeEvento.toUpperCase(), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'monospace'), textAlign: TextAlign.center),
+                  const SizedBox(height: 2),
+                  Text('Ordine #${_ordineCorrente.toString().padLeft(4, '0')}', style: const TextStyle(fontSize: 13, fontFamily: 'monospace', fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                  const Divider(color: Colors.black54, thickness: 1.5, height: 4, indent: 8, endIndent: 8),
+                  const SizedBox(height: 2),
+                  // Font largo e grande per il prodotto
+                  Text('1x ${prodotto.nome.toUpperCase()}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, fontFamily: 'monospace', height: 1.1)),
+                  const SizedBox(height: 2),
+                  const Divider(color: Colors.black54, thickness: 1.5, height: 4, indent: 8, endIndent: 8),
+                  Text('${prodotto.prezzo.toStringAsFixed(2)} EUR   -   Ticket $ticketCorrente di $totaleTicket', style: const TextStyle(fontSize: 11, fontFamily: 'monospace'), textAlign: TextAlign.center),
+                  Text(dataOra, style: const TextStyle(fontSize: 9, fontFamily: 'monospace', color: Colors.grey), textAlign: TextAlign.center),
                 ],
               ),
             )
         );
         if (ticketCorrente < totaleTicket) {
-          listaTicket.add(const Padding(padding: EdgeInsets.symmetric(vertical: 12.0), child: Text('- - - - - ✂️ - - - - -', style: TextStyle(color: Colors.grey, fontSize: 18, letterSpacing: 2), textAlign: TextAlign.center)));
+          listaTicket.add(const Padding(padding: EdgeInsets.symmetric(vertical: 4.0), child: Text('- - - - - ✂️ - - - - -', style: TextStyle(color: Colors.grey, fontSize: 16, letterSpacing: 2), textAlign: TextAlign.center)));
         }
         ticketCorrente++;
       }
@@ -166,7 +172,7 @@ class _CassaScreenState extends State<CassaScreen> {
     return listaTicket;
   }
 
-  void _mostraAnteprimaScontrino(Map<Prodotto, int> carrelloVenduto, double totale) {
+  void _mostraAnteprimaScontrino(Map<Prodotto, int> carrelloVenduto, double totale, String metodoPagamento) {
     String dataOraStr = DateTime.now().toString().substring(0, 16);
     showDialog(
       context: context,
@@ -176,6 +182,7 @@ class _CassaScreenState extends State<CassaScreen> {
           children: [
             const Text('🖨️ SIMULAZIONE TICKET', style: TextStyle(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.bold)),
             Text('Totale pagato: ${totale.toStringAsFixed(2)} €', style: const TextStyle(fontSize: 16, color: Colors.indigo, fontWeight: FontWeight.bold)),
+            Text('Pagamento in: $metodoPagamento', style: const TextStyle(fontSize: 12, color: Colors.black54)),
           ],
         ),
         content: SizedBox(
@@ -186,7 +193,7 @@ class _CassaScreenState extends State<CassaScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white),
             onPressed: () {
               Navigator.pop(context);
-              widget.onStampaScontrino(carrelloVenduto, totale);
+              widget.onStampaScontrino(carrelloVenduto, totale, metodoPagamento);
               _svuotaCarrello();
             },
             child: const Text('Completa Ordine Simulato'),
@@ -196,7 +203,15 @@ class _CassaScreenState extends State<CassaScreen> {
     );
   }
 
-  void _mostraDialogoStampante() {
+  void _gestisciAzioneDopoPagamento(String metodoPagamento) {
+    if (stampanteGlobale != null) {
+      _eseguiStampaFisica(metodoPagamento);
+    } else {
+      _mostraDialogoStampante(metodoPreselezionato: metodoPagamento);
+    }
+  }
+
+  void _mostraDialogoStampante({String? metodoPreselezionato}) {
     bool staCercando = true;
     List<PrinterDevice> dispositiviTrovati = [];
 
@@ -271,7 +286,13 @@ class _CassaScreenState extends State<CassaScreen> {
                             onTap: () {
                               setState(() => stampanteGlobale = d);
                               Navigator.pop(context);
-                              if (_carrello.isNotEmpty) _gestisciStampaScontrino();
+                              if (_carrello.isNotEmpty) {
+                                if (metodoPreselezionato != null) {
+                                  _eseguiStampaFisica(metodoPreselezionato);
+                                } else {
+                                  _mostraDialogoPagamento();
+                                }
+                              }
                             },
                           );
                         },
@@ -286,7 +307,8 @@ class _CassaScreenState extends State<CassaScreen> {
                   TextButton(
                     onPressed: () {
                       Navigator.pop(context);
-                      _mostraAnteprimaScontrino(Map.from(_carrello), _totaleIncasso);
+                      String metodoSicuro = metodoPreselezionato ?? 'CONTANTI';
+                      _mostraAnteprimaScontrino(Map.from(_carrello), _totaleIncasso, metodoSicuro);
                     },
                     child: const Text('Simula a Schermo', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
                   ),
@@ -303,40 +325,7 @@ class _CassaScreenState extends State<CassaScreen> {
     );
   }
 
-  Future<List<int>> _generaByteScontrino(Map<Prodotto, int> carrelloVenduto) async {
-    final profile = await CapabilityProfile.load();
-    final generator = Generator(PaperSize.mm80, profile);
-    List<int> bytes = [];
-
-    int totaleTicket = 0;
-    carrelloVenduto.forEach((p, q) => totaleTicket += q);
-    int ticketCorrente = 1;
-
-    carrelloVenduto.forEach((prodotto, quantita) {
-      for (int i = 0; i < quantita; i++) {
-        bytes.addAll(generator.text('CASSA_V19', styles: const PosStyles(align: PosAlign.center, bold: false, fontType: PosFontType.fontB)));
-        bytes.addAll(generator.feed(1));
-
-        bytes.addAll(generator.text(widget.nomeEvento.toUpperCase(), styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2)));
-        bytes.addAll(generator.feed(1));
-        bytes.addAll(generator.text('Ordine #${_ordineCorrente.toString().padLeft(4, '0')}', styles: const PosStyles(align: PosAlign.center, bold: true)));
-        bytes.addAll(generator.hr());
-        bytes.addAll(generator.feed(1));
-        bytes.addAll(generator.text('1x ${prodotto.nome.toUpperCase()}', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2)));
-        bytes.addAll(generator.feed(1));
-        bytes.addAll(generator.hr());
-        bytes.addAll(generator.text('${prodotto.prezzo.toStringAsFixed(2)} EUR   -   Ticket $ticketCorrente di $totaleTicket', styles: const PosStyles(align: PosAlign.center)));
-        bytes.addAll(generator.text(DateTime.now().toString().substring(0, 16), styles: const PosStyles(align: PosAlign.center)));
-        bytes.addAll(generator.feed(2));
-        bytes.addAll(generator.cut());
-
-        ticketCorrente++;
-      }
-    });
-    return bytes;
-  }
-
-  void _gestisciStampaScontrino() async {
+  void _mostraDialogoPagamento() {
     if (widget.nomeEvento.isEmpty) {
       showDialog(
         context: context,
@@ -360,11 +349,243 @@ class _CassaScreenState extends State<CassaScreen> {
       return;
     }
 
-    if (stampanteGlobale == null) {
-      _mostraDialogoStampante();
-      return;
-    }
+    bool isContanti = false;
+    String importoInserito = ''; // Stringa vuota = importo esatto
 
+    showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) {
+          return StatefulBuilder(
+              builder: (context, setStateModal) {
+                if (!isContanti) {
+                  return AlertDialog(
+                    title: const Text('METODO DI PAGAMENTO', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold)),
+                    content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('Totale: ${_totaleIncasso.toStringAsFixed(2)} €', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 24),
+                          Row(
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 24)),
+                                      icon: const Icon(Icons.credit_card, size: 32),
+                                      label: const Text('CARTA', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                      onPressed: () {
+                                        Navigator.pop(context);
+                                        _gestisciAzioneDopoPagamento('CARTA');
+                                      }
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 24)),
+                                    icon: const Icon(Icons.payments, size: 32),
+                                    label: const Text('CONTANTI', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                    onPressed: () => setStateModal(() => isContanti = true),
+                                  ),
+                                ),
+                              ]
+                          )
+                        ]
+                    ),
+                    actions: [ TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annulla', style: TextStyle(color: Colors.grey))) ],
+                  );
+                } else {
+                  // Calcolo logico del resto
+                  double importoRicevuto = importoInserito.isEmpty
+                      ? _totaleIncasso
+                      : (double.tryParse(importoInserito) ?? _totaleIncasso);
+
+                  double resto = importoRicevuto - _totaleIncasso;
+                  bool isImportoValido = importoInserito.isEmpty || importoRicevuto >= _totaleIncasso;
+
+                  void premiTastoResto(String tasto) {
+                    setStateModal(() {
+                      if (tasto == 'C') {
+                        importoInserito = '';
+                      } else if (tasto == '.') {
+                        if (!importoInserito.contains('.')) importoInserito += '.';
+                      } else {
+                        if (importoInserito.length < 6) { // Limite sicurezza
+                          importoInserito += tasto;
+                        }
+                      }
+                    });
+                  }
+
+                  Widget buildTasto(String t, {Color? bg, Color? fg}) {
+                    return ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: bg ?? Colors.grey.shade200,
+                        foregroundColor: fg ?? Colors.black87,
+                        padding: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        elevation: 1,
+                      ),
+                      onPressed: () => premiTastoResto(t),
+                      child: Text(t, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                    );
+                  }
+
+                  return AlertDialog(
+                      title: const Text('CALCOLO RESTO', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold)),
+                      content: SizedBox(
+                        width: 320,
+                        child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('Totale da pagare: ${_totaleIncasso.toStringAsFixed(2)} €', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 16),
+
+                              // Display dell'importo inserito
+                              Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      border: Border.all(color: Colors.indigo.shade300, width: 2),
+                                      borderRadius: BorderRadius.circular(8)
+                                  ),
+                                  child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        const Text('Ricevuto:', style: TextStyle(color: Colors.grey, fontSize: 16, fontWeight: FontWeight.bold)),
+                                        Text(
+                                            importoInserito.isEmpty ? '${_totaleIncasso.toStringAsFixed(2)} € (Esatto)' : '$importoInserito €',
+                                            style: TextStyle(
+                                                fontSize: 20,
+                                                fontWeight: FontWeight.bold,
+                                                color: importoInserito.isEmpty ? Colors.green.shade700 : Colors.black87
+                                            )
+                                        ),
+                                      ]
+                                  )
+                              ),
+                              const SizedBox(height: 12),
+
+                              // Display del Resto da dare
+                              Container(
+                                padding: const EdgeInsets.all(12), width: double.infinity,
+                                decoration: BoxDecoration(
+                                    color: isImportoValido ? Colors.green.shade50 : Colors.red.shade50,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: isImportoValido ? Colors.green.shade300 : Colors.red.shade300, width: 2)
+                                ),
+                                child: Text(
+                                    isImportoValido
+                                        ? 'RESTO: ${resto <= 0 ? "0.00" : resto.toStringAsFixed(2)} €'
+                                        : 'IMPORTO INSUFFICIENTE',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        fontSize: 22,
+                                        color: isImportoValido ? Colors.green.shade800 : Colors.red.shade800,
+                                        fontWeight: FontWeight.bold
+                                    )
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Tastierino Numerico Compatto
+                              GridView.count(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                crossAxisCount: 3,
+                                childAspectRatio: 2.0, // Tasti un po' più larghi che alti
+                                mainAxisSpacing: 6,
+                                crossAxisSpacing: 6,
+                                children: [
+                                  buildTasto('7'), buildTasto('8'), buildTasto('9'),
+                                  buildTasto('4'), buildTasto('5'), buildTasto('6'),
+                                  buildTasto('1'), buildTasto('2'), buildTasto('3'),
+                                  buildTasto('C', bg: Colors.red.shade50, fg: Colors.red.shade700),
+                                  buildTasto('0'),
+                                  buildTasto('.', bg: Colors.grey.shade300),
+                                ],
+                              ),
+                            ]
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                            onPressed: () => setStateModal(() {
+                              isContanti = false;
+                              importoInserito = '';
+                            }),
+                            child: const Text('Indietro', style: TextStyle(color: Colors.grey))
+                        ),
+                        ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: isImportoValido ? Colors.green.shade700 : Colors.grey,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)
+                            ),
+                            onPressed: isImportoValido ? () {
+                              Navigator.pop(context);
+                              _gestisciAzioneDopoPagamento('CONTANTI');
+                            } : null,
+                            child: const Text('Conferma Pagamento', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))
+                        )
+                      ]
+                  );
+                }
+              }
+          );
+        }
+    );
+  }
+
+  Future<List<int>> _generaByteScontrino(Map<Prodotto, int> carrelloVenduto) async {
+    final profile = await CapabilityProfile.load();
+    final generator = Generator(PaperSize.mm80, profile);
+    List<int> bytes = [];
+
+    // --- RESET HARDWARE E FORZATURA CENTRATURA FISSA ---
+    bytes.addAll(generator.reset());
+    bytes.addAll([27, 97, 1]); // Comando ESC/POS hardware: Centrato fisso
+
+    int totaleTicket = 0;
+    carrelloVenduto.forEach((p, q) => totaleTicket += q);
+    int ticketCorrente = 1;
+
+    carrelloVenduto.forEach((prodotto, quantita) {
+      for (int i = 0; i < quantita; i++) {
+        // Scritta CASSA_V19 in alto
+        bytes.addAll(generator.text('CASSA_V19', styles: const PosStyles(align: PosAlign.center, bold: false, fontType: PosFontType.fontB)));
+        bytes.addAll(generator.feed(1));
+
+        // NOME EVENTO IN GRANDE (Altezza x2, Larghezza x2) COME PRIMA
+        bytes.addAll(generator.text(widget.nomeEvento.toUpperCase(), styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2)));
+
+        bytes.addAll(generator.feed(1));
+        bytes.addAll(generator.text('Ordine #${_ordineCorrente.toString().padLeft(4, '0')}', styles: const PosStyles(align: PosAlign.center, bold: true)));
+
+        // Linea divisoria bilanciata
+        bytes.addAll(generator.text('_______________________________________________________', styles: const PosStyles(align: PosAlign.center)));
+        bytes.addAll(generator.feed(1));
+
+        // NOME PRODOTTO IN GRANDE (Altezza x2, Larghezza x2) COME PRIMA
+        bytes.addAll(generator.text('1x ${prodotto.nome.toUpperCase()}', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2)));
+
+        bytes.addAll(generator.feed(1));
+        // Linea divisoria bilanciata
+        bytes.addAll(generator.text('_______________________________________________________', styles: const PosStyles(align: PosAlign.center)));
+
+        bytes.addAll(generator.text('${prodotto.prezzo.toStringAsFixed(2)} EUR   -   Ticket $ticketCorrente di $totaleTicket', styles: const PosStyles(align: PosAlign.center)));
+        bytes.addAll(generator.text(DateTime.now().toString().substring(0, 16), styles: const PosStyles(align: PosAlign.center)));
+
+        bytes.addAll(generator.feed(1));
+        bytes.addAll(generator.cut());
+
+        ticketCorrente++;
+      }
+    });
+    return bytes;
+  }
+
+  void _eseguiStampaFisica(String metodoPagamento) async {
     try {
       dynamic printerInput;
       if (connessioneGlobale == PrinterType.usb) {
@@ -380,7 +601,7 @@ class _CassaScreenState extends State<CassaScreen> {
       printerManager.send(type: connessioneGlobale, bytes: bytes);
 
       double totale = _totaleIncasso;
-      widget.onStampaScontrino(Map.from(_carrello), totale);
+      widget.onStampaScontrino(Map.from(_carrello), totale, metodoPagamento);
       _svuotaCarrello();
 
     } catch (e) {
@@ -454,18 +675,15 @@ class _CassaScreenState extends State<CassaScreen> {
                 size: 28,
               ),
               tooltip: 'Configura Stampante',
-              onPressed: _mostraDialogoStampante,
+              onPressed: () => _mostraDialogoStampante(),
             ),
           )
         ],
       ),
-      // LAYOUT BUILDER: Rende l'app perfetta su schermi grandi e piccoli!
       body: LayoutBuilder(
         builder: (context, constraints) {
-          // Se la larghezza è inferiore a 800px, passiamo alla modalità smartphone (colonna verticale)
           bool isMobile = constraints.maxWidth < 800;
 
-          // --- PANNELLO SINISTRO: PRODOTTI E TASTIERINO ---
           Widget pannelloProdotti = Padding(
             padding: EdgeInsets.fromLTRB(12.0, 12.0, 12.0, isMobile ? 6.0 : 12.0),
             child: Column(
@@ -529,7 +747,6 @@ class _CassaScreenState extends State<CassaScreen> {
                           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 10, offset: const Offset(0, 4))],
                           border: Border.all(color: Colors.grey.shade300),
                         ),
-                        // MODIFICA ANTI-OVERFLOW: Il tastierino ora può scorrere se lo schermo è minuscolo
                         child: SingleChildScrollView(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -579,13 +796,11 @@ class _CassaScreenState extends State<CassaScreen> {
                                 ),
                               ),
                               const SizedBox(height: 8),
-
-                              // Griglia dei numeri
                               GridView.count(
-                                shrinkWrap: true, // Fondamentale dentro il SingleChildScrollView
+                                shrinkWrap: true,
                                 physics: const NeverScrollableScrollPhysics(),
                                 crossAxisCount: 3,
-                                childAspectRatio: isMobile ? 2.2 : 1.9, // Sui telefoni i tasti sono leggermente più schiacciati
+                                childAspectRatio: isMobile ? 2.2 : 1.9,
                                 mainAxisSpacing: 5,
                                 crossAxisSpacing: 5,
                                 children: [
@@ -619,7 +834,6 @@ class _CassaScreenState extends State<CassaScreen> {
                     ),
                   )
                       : GridView.builder(
-                    // Sui telefoni mostra 2 colonne per far entrare bene i nomi, sui tablet 3 colonne
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: isMobile ? 2 : 3,
                         childAspectRatio: 1.3,
@@ -679,7 +893,6 @@ class _CassaScreenState extends State<CassaScreen> {
             ),
           );
 
-          // --- PANNELLO DESTRO: CARRELLO ---
           Widget pannelloCarrello = Container(
             margin: EdgeInsets.only(
                 left: isMobile ? 12 : 0,
@@ -698,7 +911,7 @@ class _CassaScreenState extends State<CassaScreen> {
                 ),
               ],
             ),
-            padding: EdgeInsets.all(isMobile ? 12.0 : 16.0), // Padding ridotto sui telefoni
+            padding: EdgeInsets.all(isMobile ? 12.0 : 16.0),
             child: Column(
               children: [
                 Expanded(
@@ -714,7 +927,7 @@ class _CassaScreenState extends State<CassaScreen> {
                         elevation: 1,
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
-                          dense: isMobile, // Liste più compatte sui telefoni
+                          dense: isMobile,
                           title: Text('${quantita}x ${prodotto.nome} - ${prezzoTotale.toStringAsFixed(2)} €', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                           trailing: IconButton(icon: const Icon(Icons.remove_circle, color: Colors.deepOrange), onPressed: () => _rimuoviDalCarrello(prodotto)),
                         ),
@@ -727,8 +940,6 @@ class _CassaScreenState extends State<CassaScreen> {
                   padding: EdgeInsets.symmetric(vertical: isMobile ? 8.0 : 16.0),
                   child: Text('Totale: ${_totaleIncasso.toStringAsFixed(2)} €', style: TextStyle(fontSize: isMobile ? 24 : 28, fontWeight: FontWeight.bold, color: Colors.indigo)),
                 ),
-
-                // MODIFICA ANTI-OVERFLOW: Pulsanti Affiancati su Smartphone, Impilati su Tablet
                 if (isMobile)
                   Row(
                     children: [
@@ -748,7 +959,7 @@ class _CassaScreenState extends State<CassaScreen> {
                           height: 45,
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, padding: EdgeInsets.zero),
-                            onPressed: _gestisciStampaScontrino,
+                            onPressed: _mostraDialogoPagamento,
                             child: const Text('Stampa', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                           ),
                         ),
@@ -771,7 +982,7 @@ class _CassaScreenState extends State<CassaScreen> {
                         width: double.infinity, height: 55,
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700),
-                          onPressed: _gestisciStampaScontrino,
+                          onPressed: _mostraDialogoPagamento,
                           child: const Text('Stampa Scontrino', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                         ),
                       ),
@@ -781,9 +992,7 @@ class _CassaScreenState extends State<CassaScreen> {
             ),
           );
 
-          // LOGICA FINALE:
           if (isMobile) {
-            // Modalità Telefono: Prodotti sopra, Carrello sotto
             return Column(
               children: [
                 Expanded(flex: 3, child: pannelloProdotti),
@@ -791,7 +1000,6 @@ class _CassaScreenState extends State<CassaScreen> {
               ],
             );
           } else {
-            // Modalità Tablet: Prodotti a sinistra, Carrello a destra
             return Row(
               children: [
                 Expanded(flex: 3, child: pannelloProdotti),

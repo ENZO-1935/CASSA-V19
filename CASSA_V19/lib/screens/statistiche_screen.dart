@@ -10,18 +10,24 @@ import '../printer_globals.dart'; // Memoria globale della stampante
 class StatisticheScreen extends StatefulWidget {
   final String nomeEvento;
   final double incassoTotale;
+  final double incassoContanti;
+  final double incassoCarta;
   final int numeroScontrini;
   final Map<String, int> prodottiVenduti;
+  final Map<String, double> listinoPrezzi;
   final VoidCallback onAggiorna;
   final VoidCallback onStampaChiusura;
-  final Function(bool) onArchiviaEazzera;
+  final Function(bool, bool) onArchiviaEazzera;
 
   const StatisticheScreen({
     super.key,
     required this.nomeEvento,
     required this.incassoTotale,
+    required this.incassoContanti,
+    required this.incassoCarta,
     required this.numeroScontrini,
     required this.prodottiVenduti,
+    this.listinoPrezzi = const {},
     required this.onAggiorna,
     required this.onStampaChiusura,
     required this.onArchiviaEazzera,
@@ -58,49 +64,93 @@ class _StatisticheScreenState extends State<StatisticheScreen> {
           child: SingleChildScrollView(
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
+              padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 16.0),
               decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.black87, width: 2)),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Image.asset('assets/images/logo_scontrino.png', height: 80),
-                  const SizedBox(height: 6),
-                  Text(widget.nomeEvento.toUpperCase(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'monospace'), textAlign: TextAlign.center),
-                  const Text('SCONTRINO DI CHIUSURA', style: TextStyle(fontSize: 14, fontFamily: 'monospace')),
-                  Text(DateTime.now().toString().substring(0, 16), style: const TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.grey)),
-                  const Divider(color: Colors.black87, thickness: 1.5),
                   const SizedBox(height: 10),
-
-                  ...widget.prodottiVenduti.entries.map((e) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(e.key.toUpperCase(), style: const TextStyle(fontFamily: 'monospace', fontSize: 13)),
-                        Text('Qt: ${e.value}', style: const TextStyle(fontFamily: 'monospace', fontSize: 13, fontWeight: FontWeight.bold)),
-                      ],
+                  Text(
+                    widget.nomeEvento.toUpperCase(),
+                    style: TextStyle(
+                        fontSize: widget.nomeEvento.length > 21 ? 14 : 18,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'monospace'
                     ),
-                  )),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.clip,
+                  ),
+                  const Text('SCONTRINO DI CHIUSURA', style: TextStyle(fontSize: 14, fontFamily: 'monospace'), textAlign: TextAlign.center, maxLines: 1),
+                  Text(DateTime.now().toString().substring(0, 16), style: const TextStyle(fontSize: 12, fontFamily: 'monospace', color: Colors.grey), textAlign: TextAlign.center, maxLines: 1),
 
-                  const SizedBox(height: 10),
-                  const Divider(color: Colors.black87, thickness: 1.5),
+                  const SizedBox(height: 12),
+                  const Text('==========================================', style: TextStyle(fontFamily: 'monospace', fontSize: 11, color: Colors.black87, fontWeight: FontWeight.bold), textAlign: TextAlign.center, maxLines: 1),
 
-                  Row(
+                  const Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('TOTALE INCASSO:', style: TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold, fontSize: 14)),
-                      Text('${widget.incassoTotale.toStringAsFixed(2)} €', style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text('QT   ', style: TextStyle(fontFamily: 'monospace', fontSize: 13, fontWeight: FontWeight.bold)),
+                      Expanded(child: Text('PRODOTTO', style: TextStyle(fontFamily: 'monospace', fontSize: 13, fontWeight: FontWeight.bold))),
+                      Text('  TOTALE', style: TextStyle(fontFamily: 'monospace', fontSize: 13, fontWeight: FontWeight.bold)),
                     ],
                   ),
+                  const Text('==========================================', style: TextStyle(fontFamily: 'monospace', fontSize: 11, color: Colors.black87, fontWeight: FontWeight.bold), textAlign: TextAlign.center, maxLines: 1),
                   const SizedBox(height: 4),
+
+                  ...() {
+                    int idx = 0;
+                    int tot = widget.prodottiVenduti.length;
+                    return widget.prodottiVenduti.entries.map((e) {
+                      bool isLast = (idx == tot - 1);
+                      idx++;
+                      double pUnitario = widget.listinoPrezzi[e.key] ?? 0.0;
+                      double totProdotto = e.value * pUnitario;
+                      return Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2.0),
+                            child: Row(
+                              children: [
+                                Text('${e.value.toString().padLeft(4)} ', style: const TextStyle(fontFamily: 'monospace', fontSize: 13)),
+                                Expanded(child: Text(e.key.toUpperCase(), style: const TextStyle(fontFamily: 'monospace', fontSize: 13), overflow: TextOverflow.ellipsis)),
+                                Text(totProdotto.toStringAsFixed(2), style: const TextStyle(fontFamily: 'monospace', fontSize: 13)),
+                              ],
+                            ),
+                          ),
+                          if (!isLast)
+                            const Text('------------------------------------------', style: TextStyle(fontFamily: 'monospace', fontSize: 11, color: Colors.black54), textAlign: TextAlign.center, maxLines: 1),
+                        ],
+                      );
+                    }).toList();
+                  }(),
+
+                  const SizedBox(height: 4),
+                  const Text('==========================================', style: TextStyle(fontFamily: 'monospace', fontSize: 11, color: Colors.black87, fontWeight: FontWeight.bold), textAlign: TextAlign.center, maxLines: 1),
+
+                  const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('SCONTRINI EMESSI:', style: TextStyle(fontFamily: 'monospace', fontSize: 12)),
-                      Text('${widget.numeroScontrini}', style: const TextStyle(fontFamily: 'monospace', fontSize: 12, fontWeight: FontWeight.bold)),
+                      const Text('SCONTRINI EMESSI:', style: TextStyle(fontFamily: 'monospace', fontSize: 13)),
+                      Text('${widget.numeroScontrini}', style: const TextStyle(fontFamily: 'monospace', fontSize: 13, fontWeight: FontWeight.bold)),
                     ],
                   ),
-                  const SizedBox(height: 20),
-                  const Text('- EVENTO CONCLUSO -', style: TextStyle(fontFamily: 'monospace', fontSize: 12, color: Colors.grey)),
+
+                  const SizedBox(height: 12),
+                  const Text('==========================================', style: TextStyle(fontFamily: 'monospace', fontSize: 11, color: Colors.black87, fontWeight: FontWeight.bold), textAlign: TextAlign.center, maxLines: 1),
+                  const SizedBox(height: 16),
+
+                  const Text('TOTALE INCASSO', style: TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold, fontSize: 16), textAlign: TextAlign.center),
+                  Text('${widget.incassoTotale.toStringAsFixed(2)} €', style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold, fontSize: 24), textAlign: TextAlign.center),
+
+                  const SizedBox(height: 12),
+                  Text('di cui Contanti: ${widget.incassoContanti.toStringAsFixed(2)} €', style: const TextStyle(fontFamily: 'monospace', fontSize: 13), textAlign: TextAlign.center),
+                  Text('di cui Carta: ${widget.incassoCarta.toStringAsFixed(2)} €', style: const TextStyle(fontFamily: 'monospace', fontSize: 13), textAlign: TextAlign.center),
+
+                  const SizedBox(height: 24),
+                  const Text('- EVENTO CONCLUSO -', style: TextStyle(fontFamily: 'monospace', fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
                 ],
               ),
             ),
@@ -125,6 +175,9 @@ class _StatisticheScreenState extends State<StatisticheScreen> {
     final generator = Generator(PaperSize.mm80, profile);
     List<int> bytes = [];
 
+    bytes.addAll(List<int>.from(generator.reset()));
+    bytes.addAll([27, 97, 1]);
+
     img.Image? logoImage;
     try {
       final ByteData data = await rootBundle.load('assets/images/logo_scontrino.png');
@@ -139,53 +192,84 @@ class _StatisticheScreenState extends State<StatisticheScreen> {
     }
 
     if (logoImage != null) {
-      bytes.addAll(generator.imageRaster(logoImage, align: PosAlign.center));
-      bytes.addAll(generator.feed(1));
+      bytes.addAll(List<int>.from(generator.imageRaster(logoImage, align: PosAlign.center)));
+      bytes.addAll(List<int>.from(generator.feed(1)));
     }
 
-    bytes.addAll(generator.text(widget.nomeEvento.toUpperCase(), styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2)));
-    bytes.addAll(generator.feed(1));
-    bytes.addAll(generator.text('SCONTRINO DI CHIUSURA', styles: const PosStyles(align: PosAlign.center, bold: true)));
-    bytes.addAll(generator.text(DateTime.now().toString().substring(0, 16), styles: const PosStyles(align: PosAlign.center)));
-    bytes.addAll(generator.hr());
-    bytes.addAll(generator.feed(1));
+    String nomeEventoStampa = widget.nomeEvento.toUpperCase();
+    if (nomeEventoStampa.length > 42) nomeEventoStampa = nomeEventoStampa.substring(0, 42);
+
+    if (nomeEventoStampa.length > 21) {
+      // Font stretto e alto (altezza x2, larghezza x1) per non andare mai a capo
+      bytes.addAll(List<int>.from(generator.text(nomeEventoStampa, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size1))));
+    } else {
+      // Font Gigante (altezza x2, larghezza x2) se è corto
+      bytes.addAll(List<int>.from(generator.text(nomeEventoStampa, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2))));
+    }
+
+    bytes.addAll(List<int>.from(generator.feed(1)));
+    bytes.addAll(List<int>.from(generator.text('SCONTRINO DI CHIUSURA', styles: const PosStyles(align: PosAlign.center, bold: true))));
+    bytes.addAll(List<int>.from(generator.text(DateTime.now().toString().substring(0, 16), styles: const PosStyles(align: PosAlign.center))));
+
+    bytes.addAll(List<int>.from(generator.feed(1)));
+    bytes.addAll(List<int>.from(generator.text('==========================================', styles: const PosStyles(align: PosAlign.center))));
+
+    bytes.addAll(List<int>.from(generator.text('QT   PRODOTTO                       TOTALE', styles: const PosStyles(fontType: PosFontType.fontA, bold: true))));
+    bytes.addAll(List<int>.from(generator.text('==========================================', styles: const PosStyles(align: PosAlign.center))));
+
+    int count = 0;
+    int totale = widget.prodottiVenduti.length;
 
     widget.prodottiVenduti.forEach((nome, quantita) {
+      bool isLast = (count == totale - 1);
+      count++;
+
       String nomeUpper = nome.toUpperCase();
-      if (nomeUpper.length > 28) {
-        nomeUpper = nomeUpper.substring(0, 28);
+      double prezzoUnitario = widget.listinoPrezzi[nome] ?? 0.0;
+      double incassoProdotto = quantita * prezzoUnitario;
+      String prezzoStr = incassoProdotto.toStringAsFixed(2);
+
+      String qtColonna = '${quantita.toString().padLeft(4)} ';
+      int maxSpazioNome = 42 - qtColonna.length - prezzoStr.length - 1;
+
+      if (nomeUpper.length > maxSpazioNome) {
+        nomeUpper = nomeUpper.substring(0, maxSpazioNome);
       }
 
-      // FORZATURA A 4 CARATTERI: il numero avrà sempre la stessa larghezza
-      String qtStr = 'Qt: ${quantita.toString().padLeft(4)}';
+      int spaziVuoti = 42 - qtColonna.length - nomeUpper.length - prezzoStr.length;
+      if (spaziVuoti < 1) spaziVuoti = 1;
 
-      int spazi = 42 - nomeUpper.length - qtStr.length;
-      if (spazi < 1) spazi = 1;
-      String riga = nomeUpper + (' ' * spazi) + qtStr;
-      bytes.addAll(generator.text(riga, styles: const PosStyles(fontType: PosFontType.fontA)));
+      String riga = qtColonna + nomeUpper + (' ' * spaziVuoti) + prezzoStr;
+
+      bytes.addAll(List<int>.from(generator.text(riga, styles: const PosStyles(fontType: PosFontType.fontA))));
+
+      if (!isLast) {
+        bytes.addAll(List<int>.from(generator.text('------------------------------------------', styles: const PosStyles(align: PosAlign.center))));
+      }
     });
 
-    bytes.addAll(generator.feed(1));
-    bytes.addAll(generator.hr());
-
-    String etichettaTotale = 'TOTALE INCASSO:';
-    String valoreTotale = '${widget.incassoTotale.toStringAsFixed(2)} EUR';
-    int spaziTotale = 42 - etichettaTotale.length - valoreTotale.length;
-    if (spaziTotale < 1) spaziTotale = 1;
-    String rigaTotale = etichettaTotale + (' ' * spaziTotale) + valoreTotale;
-    bytes.addAll(generator.text(rigaTotale, styles: const PosStyles(fontType: PosFontType.fontA, bold: true)));
+    bytes.addAll(List<int>.from(generator.text('==========================================', styles: const PosStyles(align: PosAlign.center))));
 
     String etichettaEmessi = 'SCONTRINI EMESSI:';
     String valoreEmessi = '${widget.numeroScontrini}';
     int spaziEmessi = 42 - etichettaEmessi.length - valoreEmessi.length;
-    if (spaziEmessi < 1) spaziEmessi = 1;
     String rigaEmessi = etichettaEmessi + (' ' * spaziEmessi) + valoreEmessi;
-    bytes.addAll(generator.text(rigaEmessi, styles: const PosStyles(fontType: PosFontType.fontA)));
+    bytes.addAll(List<int>.from(generator.text(rigaEmessi, styles: const PosStyles(fontType: PosFontType.fontA))));
 
-    bytes.addAll(generator.feed(2));
-    bytes.addAll(generator.text('- EVENTO CONCLUSO -', styles: const PosStyles(align: PosAlign.center)));
-    bytes.addAll(generator.feed(2));
-    bytes.addAll(generator.cut());
+    bytes.addAll(List<int>.from(generator.text('==========================================', styles: const PosStyles(align: PosAlign.center))));
+    bytes.addAll(List<int>.from(generator.feed(1)));
+
+    bytes.addAll(List<int>.from(generator.text('TOTALE INCASSO', styles: const PosStyles(align: PosAlign.center, bold: true))));
+    bytes.addAll(List<int>.from(generator.text('${widget.incassoTotale.toStringAsFixed(2)} EUR', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2))));
+
+    bytes.addAll(List<int>.from(generator.feed(1)));
+    bytes.addAll(List<int>.from(generator.text('di cui Contanti: ${widget.incassoContanti.toStringAsFixed(2)} EUR', styles: const PosStyles(align: PosAlign.center))));
+    bytes.addAll(List<int>.from(generator.text('di cui Carta: ${widget.incassoCarta.toStringAsFixed(2)} EUR', styles: const PosStyles(align: PosAlign.center))));
+
+    bytes.addAll(List<int>.from(generator.feed(2)));
+    bytes.addAll(List<int>.from(generator.text('- EVENTO CONCLUSO -', styles: const PosStyles(align: PosAlign.center))));
+    bytes.addAll(List<int>.from(generator.feed(2)));
+    bytes.addAll(List<int>.from(generator.cut()));
 
     return bytes;
   }
@@ -245,6 +329,77 @@ class _StatisticheScreenState extends State<StatisticheScreen> {
     }
   }
 
+  void _mostraDialogoArchiviazione() {
+    if (widget.nomeEvento.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Non c\'è nessun evento attivo da archiviare.', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            backgroundColor: Colors.orange.shade800,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.only(bottom: 90, left: 16, right: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          )
+      );
+      return;
+    }
+
+    bool azzeraIncassi = true;
+    bool azzeraListino = false;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Archivia Evento'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Vuoi salvare una copia di questo evento nello storico?'),
+                  const SizedBox(height: 16),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Azzera incassi e chiudi evento attivo', style: TextStyle(fontWeight: FontWeight.bold)),
+                    value: azzeraIncassi,
+                    activeColor: Colors.indigo,
+                    onChanged: (bool? value) {
+                      setStateDialog(() {
+                        azzeraIncassi = value ?? true;
+                      });
+                    },
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Azzera anche il listino prodotti', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                    value: azzeraListino,
+                    activeColor: Colors.red,
+                    onChanged: (bool? value) {
+                      setStateDialog(() {
+                        azzeraListino = value ?? false;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annulla', style: TextStyle(color: Colors.grey))),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    widget.onArchiviaEazzera(azzeraListino, azzeraIncassi);
+                  },
+                  child: const Text('Conferma Archiviazione'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     bool isMobile = MediaQuery.of(context).size.width < 600;
@@ -280,6 +435,10 @@ class _StatisticheScreenState extends State<StatisticheScreen> {
                             alignment: Alignment.centerLeft,
                             child: Text('${widget.incassoTotale.toStringAsFixed(2)} €', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.indigo)),
                           ),
+                          const Divider(),
+                          Text('💵 Contanti: ${widget.incassoContanti.toStringAsFixed(2)} €', style: TextStyle(fontSize: isMobile ? 12 : 14, color: Colors.indigo.shade800, fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 2),
+                          Text('💳 Carta: ${widget.incassoCarta.toStringAsFixed(2)} €', style: TextStyle(fontSize: isMobile ? 12 : 14, color: Colors.indigo.shade800, fontWeight: FontWeight.w600)),
                         ],
                       ),
                     ),
@@ -311,8 +470,18 @@ class _StatisticheScreenState extends State<StatisticheScreen> {
               ],
             ),
             const SizedBox(height: 24),
-            const Text('Prodotti Venduti', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87)),
-            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Prodotti Venduti', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87)),
+                TextButton.icon(
+                  onPressed: _mostraAnteprimaChiusura,
+                  icon: const Icon(Icons.receipt_long, color: Colors.indigo),
+                  label: const Text('Anteprima Scontrino', style: TextStyle(color: Colors.indigo, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
 
             Expanded(
               child: widget.prodottiVenduti.isEmpty
@@ -322,6 +491,8 @@ class _StatisticheScreenState extends State<StatisticheScreen> {
                 itemBuilder: (context, index) {
                   final nomeProdotto = widget.prodottiVenduti.keys.elementAt(index);
                   final quantita = widget.prodottiVenduti[nomeProdotto]!;
+                  final pUnitario = widget.listinoPrezzi[nomeProdotto] ?? 0.0;
+                  final incasso = quantita * pUnitario;
 
                   return Card(
                     color: Colors.white,
@@ -330,7 +501,8 @@ class _StatisticheScreenState extends State<StatisticheScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     child: ListTile(
                       title: Text(nomeProdotto, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                      trailing: Text('Quantità: $quantita', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo)),
+                      subtitle: Text('Incasso generato: €${incasso.toStringAsFixed(2)}', style: TextStyle(color: Colors.green.shade700, fontWeight: FontWeight.w600)),
+                      trailing: Text('Qt: $quantita', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo)),
                     ),
                   );
                 },
@@ -358,62 +530,7 @@ class _StatisticheScreenState extends State<StatisticheScreen> {
                   const SizedBox(height: 8),
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
-                    onPressed: () {
-                      if (widget.nomeEvento.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text('Non c\'è nessun evento attivo da archiviare.', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                              backgroundColor: Colors.orange.shade800,
-                              behavior: SnackBarBehavior.floating,
-                              margin: const EdgeInsets.only(bottom: 90, left: 16, right: 16),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            )
-                        );
-                        return;
-                      }
-                      bool azzeraListino = false;
-                      showDialog(
-                          context: context,
-                          builder: (context) {
-                            return StatefulBuilder(
-                              builder: (context, setStateDialog) {
-                                return AlertDialog(
-                                  title: const Text('Archivia e Azzera Evento'),
-                                  content: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Text('Vuoi archiviare l\'evento nello storico e azzerare incassi e contatori?'),
-                                      const SizedBox(height: 16),
-                                      CheckboxListTile(
-                                        contentPadding: EdgeInsets.zero,
-                                        title: const Text('Azzera anche il listino prodotti', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
-                                        value: azzeraListino,
-                                        activeColor: Colors.red,
-                                        onChanged: (bool? value) {
-                                          setStateDialog(() {
-                                            azzeraListino = value ?? false;
-                                          });
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                  actions: [
-                                    TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annulla', style: TextStyle(color: Colors.grey))),
-                                    ElevatedButton(
-                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-                                      onPressed: () {
-                                        Navigator.pop(context);
-                                        widget.onArchiviaEazzera(azzeraListino);
-                                      },
-                                      child: const Text('Conferma Archiviazione'),
-                                    ),
-                                  ],
-                                );
-                              },
-                            );
-                          }
-                      );
-                    },
+                    onPressed: _mostraDialogoArchiviazione,
                     icon: const Icon(Icons.archive),
                     label: const Text('Archivia e Azzera', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
@@ -443,62 +560,7 @@ class _StatisticheScreenState extends State<StatisticheScreen> {
                   Expanded(
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 15)),
-                      onPressed: () {
-                        if (widget.nomeEvento.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: const Text('Non c\'è nessun evento attivo da archiviare.', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                backgroundColor: Colors.orange.shade800,
-                                behavior: SnackBarBehavior.floating,
-                                margin: const EdgeInsets.only(bottom: 90, left: 16, right: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              )
-                          );
-                          return;
-                        }
-                        bool azzeraListino = false;
-                        showDialog(
-                            context: context,
-                            builder: (context) {
-                              return StatefulBuilder(
-                                builder: (context, setStateDialog) {
-                                  return AlertDialog(
-                                    title: const Text('Archivia e Azzera Evento'),
-                                    content: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Text('Vuoi archiviare l\'evento nello storico e azzerare incassi e contatori?'),
-                                        const SizedBox(height: 16),
-                                        CheckboxListTile(
-                                          contentPadding: EdgeInsets.zero,
-                                          title: const Text('Azzera anche il listino prodotti', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
-                                          value: azzeraListino,
-                                          activeColor: Colors.red,
-                                          onChanged: (bool? value) {
-                                            setStateDialog(() {
-                                              azzeraListino = value ?? false;
-                                            });
-                                          },
-                                        ),
-                                      ],
-                                    ),
-                                    actions: [
-                                      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annulla', style: TextStyle(color: Colors.grey))),
-                                      ElevatedButton(
-                                        style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-                                        onPressed: () {
-                                          Navigator.pop(context);
-                                          widget.onArchiviaEazzera(azzeraListino);
-                                        },
-                                        child: const Text('Conferma Archiviazione'),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              );
-                            }
-                        );
-                      },
+                      onPressed: _mostraDialogoArchiviazione,
                       icon: const Icon(Icons.archive),
                       label: const Text('Archivia e Azzera', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
