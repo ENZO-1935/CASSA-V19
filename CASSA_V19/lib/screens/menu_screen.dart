@@ -23,6 +23,7 @@ class _MenuScreenState extends State<MenuScreen> {
 
   List<Prodotto> _prodottiGlobali = [];
   List<EventoArchiviato> _eventiPassati = [];
+  List<EventoArchiviato> _eventiCestinati = []; // Cestino invisibile per la contabilità globale
   String _nomeEvento = '';
 
   double _incassoTotale = 0.0;
@@ -31,7 +32,7 @@ class _MenuScreenState extends State<MenuScreen> {
   int _numeroScontrini = 0;
   Map<String, int> _prodottiVenduti = {};
 
-  List<Transazione> _transazioniAttive = []; // Storico orari per il filtro
+  List<Transazione> _transazioniAttive = [];
 
   bool _isLoading = true;
 
@@ -72,6 +73,13 @@ class _MenuScreenState extends State<MenuScreen> {
       _eventiPassati = decodedStorico.map((item) => EventoArchiviato.fromJson(item)).toList();
     }
 
+    // Caricamento eventi cestinati
+    final String? cestinoString = prefs.getString('storico_eventi_cestinati');
+    if (cestinoString != null) {
+      final List decodedCestino = jsonDecode(cestinoString);
+      _eventiCestinati = decodedCestino.map((item) => EventoArchiviato.fromJson(item)).toList();
+    }
+
     _incassoTotale = prefs.getDouble('incasso_corrente') ?? 0.0;
     _incassoContanti = prefs.getDouble('incasso_contanti') ?? 0.0;
     _incassoCarta = prefs.getDouble('incasso_carta') ?? 0.0;
@@ -110,6 +118,11 @@ class _MenuScreenState extends State<MenuScreen> {
     await prefs.setString('storico_eventi', jsonEncode(_eventiPassati.map((e) => e.toJson()).toList()));
   }
 
+  Future<void> _salvaCestino() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('storico_eventi_cestinati', jsonEncode(_eventiCestinati.map((e) => e.toJson()).toList()));
+  }
+
   void _registraVendita(Map<Prodotto, int> carrello, double totale, String metodoPagamento) {
     setState(() {
       _incassoTotale += totale;
@@ -144,56 +157,53 @@ class _MenuScreenState extends State<MenuScreen> {
     _salvaDatiCorrenti();
   }
 
-  void _archiviaEvento(bool azzeraListino, bool azzeraIncassi) {
-    if (_nomeEvento.isEmpty) return;
+  void _archiviaEvento(bool comeNuovo, String? idDestinazione, bool azzeraListino) {
+    if (_nomeEvento.isEmpty && _incassoTotale == 0) return;
 
-    int indiceEsistente = _eventiPassati.indexWhere((e) => e.nomeEvento.toLowerCase() == _nomeEvento.toLowerCase());
+    if (!comeNuovo && idDestinazione != null) {
+      int indiceEsistente = _eventiPassati.indexWhere((e) => e.id == idDestinazione);
 
-    if (indiceEsistente >= 0) {
-      // SISTEMA ANTI-DOPPIONI: Cerca solo gli scontrini NON ancora archiviati nello storico
-      List<Transazione> nuoveTransazioni = _transazioniAttive.where((tAttiva) {
-        return !_eventiPassati[indiceEsistente].transazioni.any((tStorico) =>
-            tStorico.dataOra.isAtSameMomentAs(tAttiva.dataOra)
-        );
-      }).toList();
+      if (indiceEsistente >= 0) {
+        List<Transazione> nuoveTransazioni = _transazioniAttive.where((tAttiva) {
+          return !_eventiPassati[indiceEsistente].transazioni.any((tStorico) =>
+              tStorico.dataOra.isAtSameMomentAs(tAttiva.dataOra)
+          );
+        }).toList();
 
-      double nuovoIncassoTotale = 0;
-      double nuovoIncassoContanti = 0;
-      double nuovoIncassoCarta = 0;
-      int nuovoNumeroScontrini = 0;
-      Map<String, int> nuoviProdottiVenduti = {};
+        double nuovoIncassoTotale = 0;
+        double nuovoIncassoContanti = 0;
+        double nuovoIncassoCarta = 0;
+        int nuovoNumeroScontrini = 0;
+        Map<String, int> nuoviProdottiVenduti = {};
 
-      // Calcola i totali SOLO dei nuovi scontrini aggiunti da dopo l'ultimo backup
-      for(var t in nuoveTransazioni) {
-        nuovoIncassoTotale += t.totale;
-        if (t.metodoPagamento == 'CARTA') nuovoIncassoCarta += t.totale;
-        else nuovoIncassoContanti += t.totale;
-        nuovoNumeroScontrini += 1;
-        t.prodotti.forEach((k, v) {
-          String nomeU = k.toUpperCase();
-          nuoviProdottiVenduti[nomeU] = (nuoviProdottiVenduti[nomeU] ?? 0) + v;
+        for(var t in nuoveTransazioni) {
+          nuovoIncassoTotale += t.totale;
+          if (t.metodoPagamento == 'CARTA') nuovoIncassoCarta += t.totale;
+          else nuovoIncassoContanti += t.totale;
+          nuovoNumeroScontrini += 1;
+          t.prodotti.forEach((k, v) {
+            String nomeU = k.toUpperCase();
+            nuoviProdottiVenduti[nomeU] = (nuoviProdottiVenduti[nomeU] ?? 0) + v;
+          });
+        }
+
+        _eventiPassati[indiceEsistente].incassoTotale += nuovoIncassoTotale;
+        _eventiPassati[indiceEsistente].incassoContanti += nuovoIncassoContanti;
+        _eventiPassati[indiceEsistente].incassoCarta += nuovoIncassoCarta;
+        _eventiPassati[indiceEsistente].numeroScontriniEmessi += nuovoNumeroScontrini;
+        _eventiPassati[indiceEsistente].dataChiusura = DateTime.now().toString().substring(0, 16);
+
+        nuoviProdottiVenduti.forEach((key, val) {
+          _eventiPassati[indiceEsistente].prodottiVenduti[key] = (_eventiPassati[indiceEsistente].prodottiVenduti[key] ?? 0) + val;
         });
+
+        for (var p in _prodottiGlobali) {
+          _eventiPassati[indiceEsistente].prezziProdotti[p.nome.toUpperCase()] = p.prezzo;
+        }
+
+        _eventiPassati[indiceEsistente].transazioni.addAll(nuoveTransazioni);
       }
-
-      // Somma il delta al database storico
-      _eventiPassati[indiceEsistente].incassoTotale += nuovoIncassoTotale;
-      _eventiPassati[indiceEsistente].incassoContanti += nuovoIncassoContanti;
-      _eventiPassati[indiceEsistente].incassoCarta += nuovoIncassoCarta;
-      _eventiPassati[indiceEsistente].numeroScontriniEmessi += nuovoNumeroScontrini;
-      _eventiPassati[indiceEsistente].dataChiusura = DateTime.now().toString().substring(0, 16);
-
-      nuoviProdottiVenduti.forEach((key, val) {
-        _eventiPassati[indiceEsistente].prodottiVenduti[key] = (_eventiPassati[indiceEsistente].prodottiVenduti[key] ?? 0) + val;
-      });
-
-      for (var p in _prodottiGlobali) {
-        _eventiPassati[indiceEsistente].prezziProdotti[p.nome.toUpperCase()] = p.prezzo;
-      }
-
-      _eventiPassati[indiceEsistente].transazioni.addAll(nuoveTransazioni);
-
     } else {
-      // Primo salvataggio in assoluto
       Map<String, int> prodottiVendutiMaiuscolo = {};
       _prodottiVenduti.forEach((k, v) => prodottiVendutiMaiuscolo[k.toUpperCase()] = v);
 
@@ -204,7 +214,7 @@ class _MenuScreenState extends State<MenuScreen> {
 
       final nuovoEvento = EventoArchiviato(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        nomeEvento: _nomeEvento,
+        nomeEvento: _nomeEvento.isEmpty ? 'Evento Chiuso' : _nomeEvento,
         dataChiusura: DateTime.now().toString().substring(0, 16),
         incassoTotale: _incassoTotale,
         incassoContanti: _incassoContanti,
@@ -218,15 +228,13 @@ class _MenuScreenState extends State<MenuScreen> {
     }
 
     setState(() {
-      if (azzeraIncassi) {
-        _incassoTotale = 0.0;
-        _incassoContanti = 0.0;
-        _incassoCarta = 0.0;
-        _numeroScontrini = 0;
-        _prodottiVenduti.clear();
-        _transazioniAttive.clear();
-        _nomeEvento = '';
-      }
+      _incassoTotale = 0.0;
+      _incassoContanti = 0.0;
+      _incassoCarta = 0.0;
+      _numeroScontrini = 0;
+      _prodottiVenduti.clear();
+      _transazioniAttive.clear();
+      _nomeEvento = '';
 
       if (azzeraListino) {
         _prodottiGlobali.clear();
@@ -237,11 +245,10 @@ class _MenuScreenState extends State<MenuScreen> {
     _salvaDatiCorrenti();
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(azzeraIncassi ? 'Evento archiviato e chiuso con successo.' : 'Backup archiviato nello storico (dati correnti mantenuti).')),
+      const SnackBar(content: Text('Dati archiviati con successo! La cassa è stata svuotata per il prossimo turno.')),
     );
   }
 
-  // Genera un oggetto evento "virtuale" con i dati correnti
   EventoArchiviato? get _eventoAttivoVirtuale {
     if (_nomeEvento.isEmpty && _incassoTotale == 0) return null;
 
@@ -302,25 +309,43 @@ class _MenuScreenState extends State<MenuScreen> {
         numeroScontrini: _numeroScontrini,
         prodottiVenduti: _prodottiVenduti,
         listinoPrezzi: { for (var p in _prodottiGlobali) p.nome.toUpperCase(): p.prezzo },
+        eventiPassati: _eventiPassati,
         onAggiorna: () => setState(() {}),
         onStampaChiusura: () {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Scontrino di chiusura stampato con successo!')),
           );
         },
-        onArchiviaEazzera: (bool azzeraListino, bool azzeraIncassi) => _archiviaEvento(azzeraListino, azzeraIncassi),
+        onArchiviaEazzera: _archiviaEvento,
       ),
       StoricoScreen(
         eventiPassati: _eventiPassati,
+        eventiCestinati: _eventiCestinati,
         eventoAttivoCorrente: _eventoAttivoVirtuale,
         listinoPrezziAttuale: { for (var p in _prodottiGlobali) p.nome.toUpperCase(): p.prezzo },
         onAggiorna: () => setState(() {}),
         onSalvaStorico: _salvaStorico,
         onEliminaEvento: (id) {
           setState(() {
-            _eventiPassati.removeWhere((e) => e.id == id);
+            int indice = _eventiPassati.indexWhere((e) => e.id == id);
+            if(indice != -1) {
+              _eventiCestinati.add(_eventiPassati[indice]);
+              _eventiPassati.removeAt(indice);
+            }
           });
           _salvaStorico();
+          _salvaCestino();
+        },
+        onRipristinaEvento: (id) {
+          setState(() {
+            int indice = _eventiCestinati.indexWhere((e) => e.id == id);
+            if(indice != -1) {
+              _eventiPassati.add(_eventiCestinati[indice]);
+              _eventiCestinati.removeAt(indice);
+            }
+          });
+          _salvaStorico();
+          _salvaCestino();
         },
       ),
     ];

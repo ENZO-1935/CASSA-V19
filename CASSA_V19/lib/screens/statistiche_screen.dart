@@ -5,6 +5,7 @@ import 'package:image/image.dart' as img;
 import 'package:flutter_pos_printer_platform_image_3/flutter_pos_printer_platform_image_3.dart';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 
+import '../models/evento_archiviato.dart';
 import '../printer_globals.dart'; // Memoria globale della stampante
 
 class StatisticheScreen extends StatefulWidget {
@@ -15,9 +16,10 @@ class StatisticheScreen extends StatefulWidget {
   final int numeroScontrini;
   final Map<String, int> prodottiVenduti;
   final Map<String, double> listinoPrezzi;
+  final List<EventoArchiviato> eventiPassati; // <-- Serve per il menu a tendina
   final VoidCallback onAggiorna;
   final VoidCallback onStampaChiusura;
-  final Function(bool, bool) onArchiviaEazzera;
+  final Function(bool comeNuovo, String? idDestinazione, bool azzeraListino) onArchiviaEazzera;
 
   const StatisticheScreen({
     super.key,
@@ -28,6 +30,7 @@ class StatisticheScreen extends StatefulWidget {
     required this.numeroScontrini,
     required this.prodottiVenduti,
     this.listinoPrezzi = const {},
+    required this.eventiPassati,
     required this.onAggiorna,
     required this.onStampaChiusura,
     required this.onArchiviaEazzera,
@@ -91,7 +94,7 @@ class _StatisticheScreenState extends State<StatisticheScreen> {
                   const Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('QT   ', style: TextStyle(fontFamily: 'monospace', fontSize: 13, fontWeight: FontWeight.bold)),
+                      Text('QTA  ', style: TextStyle(fontFamily: 'monospace', fontSize: 13, fontWeight: FontWeight.bold)),
                       Expanded(child: Text('PRODOTTO', style: TextStyle(fontFamily: 'monospace', fontSize: 13, fontWeight: FontWeight.bold))),
                       Text('  TOTALE', style: TextStyle(fontFamily: 'monospace', fontSize: 13, fontWeight: FontWeight.bold)),
                     ],
@@ -200,10 +203,8 @@ class _StatisticheScreenState extends State<StatisticheScreen> {
     if (nomeEventoStampa.length > 42) nomeEventoStampa = nomeEventoStampa.substring(0, 42);
 
     if (nomeEventoStampa.length > 21) {
-      // Font stretto e alto (altezza x2, larghezza x1) per non andare mai a capo
       bytes.addAll(List<int>.from(generator.text(nomeEventoStampa, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size1))));
     } else {
-      // Font Gigante (altezza x2, larghezza x2) se è corto
       bytes.addAll(List<int>.from(generator.text(nomeEventoStampa, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2))));
     }
 
@@ -214,7 +215,7 @@ class _StatisticheScreenState extends State<StatisticheScreen> {
     bytes.addAll(List<int>.from(generator.feed(1)));
     bytes.addAll(List<int>.from(generator.text('==========================================', styles: const PosStyles(align: PosAlign.center))));
 
-    bytes.addAll(List<int>.from(generator.text('QT   PRODOTTO                       TOTALE', styles: const PosStyles(fontType: PosFontType.fontA, bold: true))));
+    bytes.addAll(List<int>.from(generator.text('QTA  PRODOTTO                       TOTALE', styles: const PosStyles(fontType: PosFontType.fontA, bold: true))));
     bytes.addAll(List<int>.from(generator.text('==========================================', styles: const PosStyles(align: PosAlign.center))));
 
     int count = 0;
@@ -329,11 +330,12 @@ class _StatisticheScreenState extends State<StatisticheScreen> {
     }
   }
 
+  // IL NUOVO MENU DI ARCHIVIAZIONE
   void _mostraDialogoArchiviazione() {
-    if (widget.nomeEvento.isEmpty) {
+    if (widget.nomeEvento.isEmpty && widget.incassoTotale == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Non c\'è nessun evento attivo da archiviare.', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            content: const Text('Non ci sono dati attivi da archiviare.', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             backgroundColor: Colors.orange.shade800,
             behavior: SnackBarBehavior.floating,
             margin: const EdgeInsets.only(bottom: 90, left: 16, right: 16),
@@ -343,7 +345,8 @@ class _StatisticheScreenState extends State<StatisticheScreen> {
       return;
     }
 
-    bool azzeraIncassi = true;
+    bool salvaComeNuovo = true;
+    String? idEventoScelto = widget.eventiPassati.isNotEmpty ? widget.eventiPassati.last.id : null;
     bool azzeraListino = false;
 
     showDialog(
@@ -352,43 +355,72 @@ class _StatisticheScreenState extends State<StatisticheScreen> {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
             return AlertDialog(
-              title: const Text('Archivia Evento'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Vuoi salvare una copia di questo evento nello storico?'),
-                  const SizedBox(height: 16),
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Azzera incassi e chiudi evento attivo', style: TextStyle(fontWeight: FontWeight.bold)),
-                    value: azzeraIncassi,
-                    activeColor: Colors.indigo,
-                    onChanged: (bool? value) {
-                      setStateDialog(() {
-                        azzeraIncassi = value ?? true;
-                      });
-                    },
-                  ),
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Azzera anche il listino prodotti', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
-                    value: azzeraListino,
-                    activeColor: Colors.red,
-                    onChanged: (bool? value) {
-                      setStateDialog(() {
-                        azzeraListino = value ?? false;
-                      });
-                    },
-                  ),
-                ],
+              title: const Text('Archivia e Chiudi Cassa', style: TextStyle(fontWeight: FontWeight.bold)),
+              content: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Gli incassi correnti verranno azzerati e spostati nello Storico. Scegli dove salvarli:', style: TextStyle(fontSize: 14)),
+                    const SizedBox(height: 16),
+
+                    // OPZIONE 1: NUOVO
+                    RadioListTile<bool>(
+                      title: const Text('Crea un NUOVO evento', style: TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text('Sarà salvato come "${widget.nomeEvento}"'),
+                      value: true,
+                      groupValue: salvaComeNuovo,
+                      onChanged: (val) => setStateDialog(() => salvaComeNuovo = val!),
+                      activeColor: Colors.indigo,
+                    ),
+
+                    // OPZIONE 2: UNISCI AL PASSATO
+                    if (widget.eventiPassati.isNotEmpty) ...[
+                      RadioListTile<bool>(
+                        title: const Text('UNISCI a un evento passato', style: TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: const Text('Somma gli incassi di oggi a una data precedente'),
+                        value: false,
+                        groupValue: salvaComeNuovo,
+                        onChanged: (val) => setStateDialog(() => salvaComeNuovo = val!),
+                        activeColor: Colors.indigo,
+                      ),
+                      if (!salvaComeNuovo)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                          child: DropdownButtonFormField<String>(
+                            decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12)),
+                            value: idEventoScelto,
+                            isExpanded: true,
+                            items: widget.eventiPassati.map((e) => DropdownMenuItem(value: e.id, child: Text('${e.nomeEvento} (${e.dataChiusura})', overflow: TextOverflow.ellipsis))).toList(),
+                            onChanged: (val) => setStateDialog(() => idEventoScelto = val),
+                          ),
+                        ),
+                    ],
+
+                    const Divider(height: 32),
+
+                    // AZZERA LISTINO
+                    CheckboxListTile(
+                      title: const Text('Svuota anche il listino prodotti', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                      subtitle: const Text('Cancella tutti i prodotti per la prossima volta.'),
+                      value: azzeraListino,
+                      activeColor: Colors.red,
+                      onChanged: (val) => setStateDialog(() => azzeraListino = val!),
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annulla', style: TextStyle(color: Colors.grey))),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
                   onPressed: () {
+                    if (!salvaComeNuovo && idEventoScelto == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Seleziona un evento a cui unire i dati.')));
+                      return;
+                    }
                     Navigator.pop(context);
-                    widget.onArchiviaEazzera(azzeraListino, azzeraIncassi);
+                    widget.onArchiviaEazzera(salvaComeNuovo, idEventoScelto, azzeraListino);
                   },
                   child: const Text('Conferma Archiviazione'),
                 ),
@@ -532,7 +564,7 @@ class _StatisticheScreenState extends State<StatisticheScreen> {
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
                     onPressed: _mostraDialogoArchiviazione,
                     icon: const Icon(Icons.archive),
-                    label: const Text('Archivia e Azzera', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    label: const Text('Archivia e Chiudi Cassa', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
                 ],
               )
@@ -562,7 +594,7 @@ class _StatisticheScreenState extends State<StatisticheScreen> {
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 15)),
                       onPressed: _mostraDialogoArchiviazione,
                       icon: const Icon(Icons.archive),
-                      label: const Text('Archivia e Azzera', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      label: const Text('Archivia e Chiudi Cassa', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],

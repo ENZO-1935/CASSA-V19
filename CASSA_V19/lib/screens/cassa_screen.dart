@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'dart:async';
 import '../models/prodotto.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
@@ -39,7 +40,57 @@ class _CassaScreenState extends State<CassaScreen> {
 
   var printerManager = PrinterManager.instance;
 
+  // Tipi corretti nativi della libreria POS
+  StreamSubscription<USBStatus>? _usbSubscription;
+  StreamSubscription<BTStatus>? _btSubscription;
+
   int get _ordineCorrente => widget.numeroScontriniEmmessi + 1;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // --- LISTENER IN TEMPO REALE PER USB E BLUETOOTH ---
+    _usbSubscription = printerManager.stateUSB.listen((status) {
+      if (status == USBStatus.none || status.index == 0) {
+        _disconnettiStampanteForzatamente();
+      }
+    });
+
+    _btSubscription = printerManager.stateBluetooth.listen((status) {
+      if (status == BTStatus.none) {
+        _disconnettiStampanteForzatamente();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _usbSubscription?.cancel();
+    _btSubscription?.cancel();
+    super.dispose();
+  }
+
+  // Funzione che sgancia la stampante, blocca tutto e avvisa l'utente
+  void _disconnettiStampanteForzatamente([String messaggioExtra = ""]) {
+    if (mounted && stampanteGlobale != null) {
+      setState(() {
+        stampanteGlobale = null; // <-- FA DIVENTARE L'ICONA ROSSA
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                '⚠️ STAMPANTE SCOLLEGATA!\n${messaggioExtra.isNotEmpty ? messaggioExtra : "Cavo USB rimosso o connessione persa."}\n\nLA VENDITA È STATA ANNULLATA!',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, height: 1.4, color: Colors.white)
+            ),
+            backgroundColor: Colors.red.shade800,
+            duration: const Duration(seconds: 6),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.only(bottom: 90, left: 16, right: 16),
+          )
+      );
+    }
+  }
 
   void _aggiungiAlCarrello(Prodotto p, {int quantitaAggiuntiva = 1}) {
     setState(() {
@@ -145,7 +196,12 @@ class _CassaScreenState extends State<CassaScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const Text('CASSA_V19', style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.grey, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                  Image.asset(
+                      'assets/images/logo_falo.jpg',
+                      height: 40,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => const Text('CASSA_V19', style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.grey, fontWeight: FontWeight.bold), textAlign: TextAlign.center)
+                  ),
                   const SizedBox(height: 2),
                   // Font largo e grande come prima
                   Text(widget.nomeEvento.toUpperCase(), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'monospace'), textAlign: TextAlign.center),
@@ -157,8 +213,11 @@ class _CassaScreenState extends State<CassaScreen> {
                   Text('1x ${prodotto.nome.toUpperCase()}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, fontFamily: 'monospace', height: 1.1)),
                   const SizedBox(height: 2),
                   const Divider(color: Colors.black54, thickness: 1.5, height: 4, indent: 8, endIndent: 8),
-                  Text('${prodotto.prezzo.toStringAsFixed(2)} EUR   -   Ticket $ticketCorrente di $totaleTicket', style: const TextStyle(fontSize: 11, fontFamily: 'monospace'), textAlign: TextAlign.center),
-                  Text(dataOra, style: const TextStyle(fontSize: 9, fontFamily: 'monospace', color: Colors.grey), textAlign: TextAlign.center),
+
+                  // QUI LA MODIFICA NELL'ANTEPRIMA: Data e Ticket assieme, no prezzo
+                  Text('$dataOra   -   Ticket $ticketCorrente di $totaleTicket', style: const TextStyle(fontSize: 11, fontFamily: 'monospace', fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                  const SizedBox(height: 2),
+                  const Text('CASSA_V19', style: TextStyle(fontSize: 9, fontFamily: 'monospace', color: Colors.grey), textAlign: TextAlign.center),
                 ],
               ),
             )
@@ -219,6 +278,20 @@ class _CassaScreenState extends State<CassaScreen> {
       updateModal(() { staCercando = true; dispositiviTrovati.clear(); });
 
       printerManager.discovery(type: connessioneGlobale, isBle: false).listen((device) {
+        // --- FILTRO ANTI FANTASMI ---
+        String nomeDispositivo = device.name?.toLowerCase() ?? '';
+        if (nomeDispositivo.contains('pdf') ||
+            nomeDispositivo.contains('fax') ||
+            nomeDispositivo.contains('onenote') ||
+            nomeDispositivo.contains('xps') ||
+            nomeDispositivo.contains('microsoft') ||
+            nomeDispositivo.contains('samsung') ||
+            nomeDispositivo.contains('hp ') ||
+            nomeDispositivo.contains('brother') ||
+            nomeDispositivo.contains('canon')) {
+          return;
+        }
+
         if (!dispositiviTrovati.any((d) => d.name == device.name && d.address == device.address)) {
           updateModal(() => dispositiviTrovati.add(device));
         }
@@ -268,7 +341,7 @@ class _CassaScreenState extends State<CassaScreen> {
                       child: staCercando && dispositiviTrovati.isEmpty
                           ? const Center(child: CircularProgressIndicator())
                           : dispositiviTrovati.isEmpty
-                          ? Center(child: Text('Nessun dispositivo trovato in modalità ${connessioneGlobale.name}.', textAlign: TextAlign.center))
+                          ? Center(child: Text('Nessuna stampante fisica trovata in modalità ${connessioneGlobale.name}.', textAlign: TextAlign.center))
                           : ListView.builder(
                         itemCount: dispositiviTrovati.length,
                         itemBuilder: (context, index) {
@@ -302,6 +375,16 @@ class _CassaScreenState extends State<CassaScreen> {
                 ),
               ),
               actions: [
+                if (stampanteGlobale != null) // TASTO ROSSO PER SCOLLEGARE FORZATAMENTE LA STAMPANTE
+                  TextButton(
+                    onPressed: () {
+                      _disconnettiStampanteForzatamente("Stampante scollegata manualmente.");
+                      printerManager.disconnect(type: connessioneGlobale);
+                      Navigator.pop(context);
+                    },
+                    child: const Text('Scollega Stampante', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                  ),
+                const Spacer(),
                 TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annulla')),
                 if (_carrello.isNotEmpty)
                   TextButton(
@@ -315,7 +398,7 @@ class _CassaScreenState extends State<CassaScreen> {
                 ElevatedButton(
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
                     onPressed: staCercando ? null : () => scansiona(setStateModal),
-                    child: const Text('Cerca Ancora')
+                    child: const Icon(Icons.refresh)
                 ),
               ],
             );
@@ -350,7 +433,7 @@ class _CassaScreenState extends State<CassaScreen> {
     }
 
     bool isContanti = false;
-    String importoInserito = ''; // Stringa vuota = importo esatto
+    String importoInserito = '';
 
     showDialog(
         context: context,
@@ -370,9 +453,16 @@ class _CassaScreenState extends State<CassaScreen> {
                               children: [
                                 Expanded(
                                   child: ElevatedButton.icon(
-                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 24)),
-                                      icon: const Icon(Icons.credit_card, size: 32),
-                                      label: const Text('CARTA', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.blue.shade700,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 8),
+                                      ),
+                                      icon: const Icon(Icons.credit_card, size: 28),
+                                      label: const FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: Text('CARTA', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                      ),
                                       onPressed: () {
                                         Navigator.pop(context);
                                         _gestisciAzioneDopoPagamento('CARTA');
@@ -382,9 +472,16 @@ class _CassaScreenState extends State<CassaScreen> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: ElevatedButton.icon(
-                                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 24)),
-                                    icon: const Icon(Icons.payments, size: 32),
-                                    label: const Text('CONTANTI', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green.shade700,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 8),
+                                    ),
+                                    icon: const Icon(Icons.payments, size: 28),
+                                    label: const FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text('CONTANTI', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                    ),
                                     onPressed: () => setStateModal(() => isContanti = true),
                                   ),
                                 ),
@@ -542,7 +639,19 @@ class _CassaScreenState extends State<CassaScreen> {
     final generator = Generator(PaperSize.mm80, profile);
     List<int> bytes = [];
 
-    // --- RESET HARDWARE E FORZATURA CENTRATURA FISSA ---
+    img.Image? logoFalo;
+    try {
+      final ByteData data = await rootBundle.load('assets/images/logo_falo.jpg');
+      final Uint8List imgBytes = data.buffer.asUint8List();
+      final decodedImage = img.decodeImage(imgBytes);
+      if (decodedImage != null) {
+        var resized = img.copyResize(decodedImage, width: 200);
+        logoFalo = img.grayscale(resized);
+      }
+    } catch (e) {
+      debugPrint("Errore immagine: $e");
+    }
+
     bytes.addAll(generator.reset());
     bytes.addAll([27, 97, 1]); // Comando ESC/POS hardware: Centrato fisso
 
@@ -552,29 +661,32 @@ class _CassaScreenState extends State<CassaScreen> {
 
     carrelloVenduto.forEach((prodotto, quantita) {
       for (int i = 0; i < quantita; i++) {
-        // Scritta CASSA_V19 in alto
-        bytes.addAll(generator.text('CASSA_V19', styles: const PosStyles(align: PosAlign.center, bold: false, fontType: PosFontType.fontB)));
-        bytes.addAll(generator.feed(1));
 
-        // NOME EVENTO IN GRANDE (Altezza x2, Larghezza x2) COME PRIMA
-        bytes.addAll(generator.text(widget.nomeEvento.toUpperCase(), styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2)));
-
-        bytes.addAll(generator.feed(1));
-        bytes.addAll(generator.text('Ordine #${_ordineCorrente.toString().padLeft(4, '0')}', styles: const PosStyles(align: PosAlign.center, bold: true)));
-
-        // Linea divisoria bilanciata
-        bytes.addAll(generator.text('_______________________________________________________', styles: const PosStyles(align: PosAlign.center)));
-        bytes.addAll(generator.feed(1));
-
-        // NOME PRODOTTO IN GRANDE (Altezza x2, Larghezza x2) COME PRIMA
-        bytes.addAll(generator.text('1x ${prodotto.nome.toUpperCase()}', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2)));
+        if (logoFalo != null) {
+          bytes.addAll(generator.imageRaster(logoFalo, align: PosAlign.center));
+        } else {
+          bytes.addAll(generator.text('CASSA_V19', styles: const PosStyles(align: PosAlign.center, bold: false, fontType: PosFontType.fontB)));
+        }
 
         bytes.addAll(generator.feed(1));
-        // Linea divisoria bilanciata
-        bytes.addAll(generator.text('_______________________________________________________', styles: const PosStyles(align: PosAlign.center)));
 
-        bytes.addAll(generator.text('${prodotto.prezzo.toStringAsFixed(2)} EUR   -   Ticket $ticketCorrente di $totaleTicket', styles: const PosStyles(align: PosAlign.center)));
-        bytes.addAll(generator.text(DateTime.now().toString().substring(0, 16), styles: const PosStyles(align: PosAlign.center)));
+        bytes.addAll(generator.text(widget.nomeEvento.toUpperCase(), styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2, fontType: PosFontType.fontB)));
+
+        bytes.addAll(generator.feed(1));
+        bytes.addAll(generator.text('Ordine #${_ordineCorrente.toString().padLeft(4, '0')}', styles: const PosStyles(align: PosAlign.center, bold: true, fontType: PosFontType.fontB)));
+
+        bytes.addAll(generator.text('_______________________________________________________', styles: const PosStyles(align: PosAlign.center, fontType: PosFontType.fontB)));
+        bytes.addAll(generator.feed(1));
+
+        bytes.addAll(generator.text('1x ${prodotto.nome.toUpperCase()}', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2, fontType: PosFontType.fontB)));
+
+        bytes.addAll(generator.feed(1));
+        bytes.addAll(generator.text('_______________________________________________________', styles: const PosStyles(align: PosAlign.center, fontType: PosFontType.fontB)));
+
+        // QUI LA MODIFICA ALLA STAMPA REALE: Data e Ticket assieme, no prezzo
+        String dataOraStr = DateTime.now().toString().substring(0, 16);
+        bytes.addAll(generator.text('$dataOraStr   -   Ticket $ticketCorrente di $totaleTicket', styles: const PosStyles(align: PosAlign.center, fontType: PosFontType.fontB)));
+        bytes.addAll(generator.text('CASSA_V19', styles: const PosStyles(align: PosAlign.center, fontType: PosFontType.fontB)));
 
         bytes.addAll(generator.feed(1));
         bytes.addAll(generator.cut());
@@ -585,8 +697,13 @@ class _CassaScreenState extends State<CassaScreen> {
     return bytes;
   }
 
+  // --- LOGICA DI STAMPA ANTI-WINDOWS SPOOLER ---
   void _eseguiStampaFisica(String metodoPagamento) async {
     try {
+      if (stampanteGlobale == null) {
+        throw Exception("Nessuna stampante connessa.");
+      }
+
       dynamic printerInput;
       if (connessioneGlobale == PrinterType.usb) {
         printerInput = UsbPrinterInput(name: stampanteGlobale!.name, productId: stampanteGlobale!.productId, vendorId: stampanteGlobale!.vendorId);
@@ -596,16 +713,27 @@ class _CassaScreenState extends State<CassaScreen> {
         printerInput = TcpPrinterInput(ipAddress: stampanteGlobale!.address!);
       }
 
-      printerManager.connect(type: connessioneGlobale, model: printerInput);
-      final bytes = await _generaByteScontrino(Map.from(_carrello));
-      printerManager.send(type: connessioneGlobale, bytes: bytes);
+      // CONTROLLO DI SICUREZZA: Connettiamo per vedere se è fisicamente presente
+      bool isConnected = await printerManager.connect(type: connessioneGlobale, model: printerInput);
 
+      if (!isConnected) {
+        throw Exception("La stampante non risponde. Potrebbe essere spenta o scollegata.");
+      }
+
+      // Genero i byte solo dopo essere certo della connessione
+      final bytes = await _generaByteScontrino(Map.from(_carrello));
+
+      // Invia alla stampante
+      await printerManager.send(type: connessioneGlobale, bytes: bytes);
+
+      // SOLO SE ARRIVA FINO A QUI SENZA ERRORI CATASTROFICI REGISTRA LA VENDITA
       double totale = _totaleIncasso;
       widget.onStampaScontrino(Map.from(_carrello), totale, metodoPagamento);
       _svuotaCarrello();
 
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Errore di stampa: $e'), backgroundColor: Colors.red));
+      // ERRORE: La vendita viene bloccata e il carrello resta intatto.
+      _disconnettiStampanteForzatamente(e.toString().replaceAll('Exception: ', ''));
     }
   }
 
@@ -663,7 +791,9 @@ class _CassaScreenState extends State<CassaScreen> {
       backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
         title: const Text('Cassa - Modalità Vendita', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
-        backgroundColor: Colors.grey.shade100,
+        backgroundColor: Colors.white,
+        elevation: 1,
+        shadowColor: Colors.black26,
         surfaceTintColor: Colors.transparent,
         actions: [
           Padding(
