@@ -270,42 +270,50 @@ class _CassaScreenState extends State<CassaScreen> {
     }
   }
 
+  // MODIFICA ANTI-BLOCCO ANDROID INSERITA QUI
   void _mostraDialogoStampante({String? metodoPreselezionato}) {
     bool staCercando = true;
+    bool scansioneAvviata = false;
     List<PrinterDevice> dispositiviTrovati = [];
-
-    void scansiona(StateSetter updateModal) {
-      updateModal(() { staCercando = true; dispositiviTrovati.clear(); });
-
-      printerManager.discovery(type: connessioneGlobale, isBle: false).listen((device) {
-        // --- FILTRO ANTI FANTASMI ---
-        String nomeDispositivo = device.name?.toLowerCase() ?? '';
-        if (nomeDispositivo.contains('pdf') ||
-            nomeDispositivo.contains('fax') ||
-            nomeDispositivo.contains('onenote') ||
-            nomeDispositivo.contains('xps') ||
-            nomeDispositivo.contains('microsoft') ||
-            nomeDispositivo.contains('samsung') ||
-            nomeDispositivo.contains('hp ') ||
-            nomeDispositivo.contains('brother') ||
-            nomeDispositivo.contains('canon')) {
-          return;
-        }
-
-        if (!dispositiviTrovati.any((d) => d.name == device.name && d.address == device.address)) {
-          updateModal(() => dispositiviTrovati.add(device));
-        }
-      }).onDone(() {
-        updateModal(() => staCercando = false);
-      });
-    }
 
     showDialog(
       context: context,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setStateModal) {
-            if (staCercando && dispositiviTrovati.isEmpty) { scansiona(setStateModal); }
+
+            void scansiona() {
+              setStateModal(() { staCercando = true; dispositiviTrovati.clear(); });
+
+              printerManager.discovery(type: connessioneGlobale, isBle: false).listen((device) {
+                // --- FILTRO ANTI FANTASMI (Ignora stampanti virtuali di Windows) ---
+                String nomeDispositivo = device.name?.toLowerCase() ?? '';
+                if (nomeDispositivo.contains('pdf') ||
+                    nomeDispositivo.contains('fax') ||
+                    nomeDispositivo.contains('onenote') ||
+                    nomeDispositivo.contains('xps') ||
+                    nomeDispositivo.contains('microsoft') ||
+                    nomeDispositivo.contains('samsung') ||
+                    nomeDispositivo.contains('hp ') ||
+                    nomeDispositivo.contains('brother') ||
+                    nomeDispositivo.contains('canon')) {
+                  return; // Salta questo dispositivo e non mostrarlo
+                }
+
+                if (!dispositiviTrovati.any((d) => d.name == device.name && d.address == device.address)) {
+                  setStateModal(() => dispositiviTrovati.add(device));
+                }
+              }).onDone(() {
+                if (mounted) {
+                  setStateModal(() => staCercando = false);
+                }
+              });
+            }
+
+            if (!scansioneAvviata) {
+              scansioneAvviata = true;
+              Future.microtask(() => scansiona());
+            }
 
             return AlertDialog(
               title: const Text('🖨️ Connetti Stampante', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
@@ -330,7 +338,7 @@ class _CassaScreenState extends State<CassaScreen> {
                             if (val != null) {
                               setState(() => connessioneGlobale = val);
                               setStateModal(() => connessioneGlobale = val);
-                              scansiona(setStateModal);
+                              scansiona();
                             }
                           },
                         ),
@@ -397,7 +405,7 @@ class _CassaScreenState extends State<CassaScreen> {
                   ),
                 ElevatedButton(
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
-                    onPressed: staCercando ? null : () => scansiona(setStateModal),
+                    onPressed: staCercando ? null : () => scansiona(),
                     child: const Icon(Icons.refresh)
                 ),
               ],
@@ -456,6 +464,7 @@ class _CassaScreenState extends State<CassaScreen> {
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.blue.shade700,
                                         foregroundColor: Colors.white,
+                                        // Padding orizzontale ridotto per fare spazio
                                         padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 8),
                                       ),
                                       icon: const Icon(Icons.credit_card, size: 28),
@@ -475,6 +484,7 @@ class _CassaScreenState extends State<CassaScreen> {
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.green.shade700,
                                       foregroundColor: Colors.white,
+                                      // Padding orizzontale ridotto per fare spazio
                                       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 8),
                                     ),
                                     icon: const Icon(Icons.payments, size: 28),
@@ -652,6 +662,7 @@ class _CassaScreenState extends State<CassaScreen> {
       debugPrint("Errore immagine: $e");
     }
 
+    // --- RESET HARDWARE E FORZATURA CENTRATURA FISSA ---
     bytes.addAll(generator.reset());
     bytes.addAll([27, 97, 1]); // Comando ESC/POS hardware: Centrato fisso
 

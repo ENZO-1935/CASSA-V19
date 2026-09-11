@@ -10,10 +10,15 @@
     <uses-permission android:name="android.permission.USB_PERMISSION" />
     <uses-feature android:name="android.hardware.usb.host" />
 
+    <!-- I DUE PERMESSI MANCANTI FONDAMENTALI -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
     <application
             android:label="cassa_v19"
             android:name="${applicationName}"
             android:icon="@mipmap/launcher_icon">
+
         <activity
                 android:name=".MainActivity"
                 android:exported="true"
